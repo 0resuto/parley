@@ -39,6 +39,7 @@ void main() {
     expect(repo.newWordPercent, 10);
     expect(repo.autoPlay, isFalse);
     expect(repo.speechSpeed, 1.0);
+    expect(repo.contextTranslation, isTrue);
     expect(await repo.isLlmConfigured(), isFalse);
   });
 
@@ -48,6 +49,7 @@ void main() {
     await repo.setNewWordPercent(20);
     await repo.setAutoPlay(true);
     await repo.setSpeechSpeed(1.2);
+    await repo.setContextTranslation(false);
     await keyStore.writeApiKey('secret');
 
     expect(repo.baseUrl, 'https://example.com/v1');
@@ -55,8 +57,19 @@ void main() {
     expect(repo.newWordPercent, 20);
     expect(repo.autoPlay, isTrue);
     expect(repo.speechSpeed, 1.2);
+    expect(repo.contextTranslation, isFalse);
     expect(await keyStore.readApiKey(), 'secret');
     expect(await repo.isLlmConfigured(), isTrue);
+  });
+
+  test('contextTranslation round-trips through prefs', () async {
+    await repo.setContextTranslation(false);
+    expect(repo.contextTranslation, isFalse);
+    expect(prefs.getBool('context_translation'), isFalse);
+
+    await repo.setContextTranslation(true);
+    expect(repo.contextTranslation, isTrue);
+    expect(prefs.getBool('context_translation'), isTrue);
   });
 
   test('baseUrl and model are trimmed', () async {

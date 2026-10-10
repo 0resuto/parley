@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:parley/core/theme.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/features/chat/message_text.dart';
 import 'package:parley/features/chat/tokenizer.dart';
@@ -20,7 +21,6 @@ Unit _unit({
     text: text,
     textKey: text.toLowerCase(),
     forms: forms,
-    translationRu: '',
     description: null,
     knownManual: known,
     phase: phase,
@@ -87,7 +87,7 @@ void main() {
       expect(rich.text.toPlainText(), 'Hello heifer and cow!');
     });
 
-    testWidgets('dictionary word has solid primary underline', (
+    testWidgets('dictionary word has a pastel orange solid underline', (
       WidgetTester tester,
     ) async {
       final UnitIndex index = UnitIndex.fromUnits([_unit(text: 'cow')]);
@@ -96,8 +96,6 @@ void main() {
         raw: 'see cow run',
         index: index,
       );
-      final BuildContext ctx = tester.element(find.byType(MessageText));
-      final ColorScheme colors = Theme.of(ctx).colorScheme;
       final List<TextSpan> words = _wordSpans(rich);
       expect(words.map((w) => w.text), ['see', 'cow', 'run']);
       // Only the dictionary word is styled; every word is tappable.
@@ -105,28 +103,30 @@ void main() {
       final TextSpan cow = words.firstWhere((w) => w.text == 'cow');
       expect(cow.style?.decoration, TextDecoration.underline);
       expect(cow.style?.decorationStyle, TextDecorationStyle.solid);
-      expect(cow.style?.color, colors.primary);
+      expect(cow.style?.color, learningWordColor);
+      // Words outside the dictionary are underlined without recoloring.
       final TextSpan see = words.firstWhere((w) => w.text == 'see');
-      expect(see.style?.decoration, isNot(TextDecoration.underline));
+      expect(see.style?.decoration, TextDecoration.underline);
+      expect(see.style?.decorationStyle, TextDecorationStyle.solid);
+      expect(see.style?.color, isNot(learningWordColor));
     });
 
-    testWidgets(
-      'AI-new word outside dictionary has dotted tertiary underline',
-      (WidgetTester tester) async {
-        final RichText rich = await _pump(
-          tester,
-          raw: 'see [[heifer]] run',
-          index: UnitIndex.empty(),
-        );
-        final BuildContext ctx = tester.element(find.byType(MessageText));
-        final ColorScheme colors = Theme.of(ctx).colorScheme;
-        final List<TextSpan> words = _wordSpans(rich);
-        final TextSpan heifer = words.firstWhere((w) => w.text == 'heifer');
-        expect(heifer.style?.decoration, TextDecoration.underline);
-        expect(heifer.style?.decorationStyle, TextDecorationStyle.dotted);
-        expect(heifer.style?.color, colors.tertiary);
-      },
-    );
+    testWidgets('word outside dictionary has a plain solid underline', (
+      WidgetTester tester,
+    ) async {
+      final RichText rich = await _pump(
+        tester,
+        raw: 'see [[heifer]] run',
+        index: UnitIndex.empty(),
+      );
+      final List<TextSpan> words = _wordSpans(rich);
+      expect(words.map((w) => w.text), ['see', 'heifer', 'run']);
+      for (final TextSpan word in words) {
+        expect(word.style?.decoration, TextDecoration.underline);
+        expect(word.style?.decorationStyle, TextDecorationStyle.solid);
+        expect(word.style?.color, isNot(learningWordColor));
+      }
+    });
 
     testWidgets('AI-new word in dictionary uses the dictionary style', (
       WidgetTester tester,
@@ -137,13 +137,11 @@ void main() {
         raw: 'see [[cow]] run',
         index: index,
       );
-      final BuildContext ctx = tester.element(find.byType(MessageText));
-      final ColorScheme colors = Theme.of(ctx).colorScheme;
       final List<TextSpan> words = _wordSpans(rich);
       final TextSpan cow = words.firstWhere((w) => w.text == 'cow');
       expect(cow.style?.decoration, TextDecoration.underline);
       expect(cow.style?.decorationStyle, TextDecorationStyle.solid);
-      expect(cow.style?.color, colors.primary);
+      expect(cow.style?.color, learningWordColor);
     });
 
     testWidgets('Known unit has no style but is tappable', (

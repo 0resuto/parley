@@ -10,58 +10,13 @@ import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/dictionary/dictionary_service.dart';
 import 'package:parley/services/llm/llm_client.dart';
+import 'package:parley/services/translation/translation.dart';
 import 'package:parley/services/tts/tts_service.dart';
 import 'package:parley/services/tutor/tap_again_policy.dart';
 
 /// Shown when the tapped word has no dictionary unit and the device is
 /// offline (SPEC 5.5, exact string).
 const String wordPopupOfflineMessage = 'Translation isn\'t available offline.';
-
-/// Verbatim system prompt for translation (SPEC 6.3).
-const String translateSystemPrompt =
-    'You are a precise English-Russian dictionary. Output ONLY JSON: '
-    '{"lemma":"...","translation_ru":"...","translation_in_context":"...","pos":"noun|verb|adj|adv|phrase|other"}. '
-    'lemma is the base form of the word as used in the sentence. '
-    'translation_ru is the main dictionary meaning: 1-3 short Russian equivalents '
-    'separated by commas that describe the word itself, as a dictionary does. '
-    'translation_in_context is 1-3 short Russian equivalents matching the meaning '
-    'in the given sentence; use the same text as translation_ru when the meanings match. '
-    'pos is the part of speech.';
-
-/// Builds the non-streaming translate request (SPEC 6.3).
-List<LlmMessage> buildTranslateMessages(String surface, String sentence) {
-  return [
-    const LlmMessage(role: LlmRole.system, content: translateSystemPrompt),
-    LlmMessage(
-      role: LlmRole.user,
-      content: 'Word: $surface\nSentence: $sentence',
-    ),
-  ];
-}
-
-/// In-memory translate cache for one app session (SPEC 5.5).
-class TranslationCache {
-  final Map<String, TranslateResult> _entries = {};
-
-  TranslateResult? get(String key) => _entries[key];
-
-  void set(String key, TranslateResult value) {
-    _entries[key] = value;
-  }
-}
-
-/// Cache provider (one instance per app session).
-final translationCacheProvider = Provider<TranslationCache>((ref) {
-  return TranslationCache();
-});
-
-/// Bundled dictionary lookups (SPEC 5.11).
-///
-/// Defaults to an empty service so tests and startup before `main()`'s
-/// override never crash; every word then falls back to the LLM.
-final dictionaryServiceProvider = Provider<DictionaryService>((ref) {
-  return EmptyDictionaryService();
-});
 
 /// Opens the word popup bottom sheet (SPEC 5.5).
 Future<void> showWordPopup({
@@ -110,14 +65,16 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   bool _offline = false;
   AppFailure? _error;
   bool _adding = false;
+  bool _markingKnown = false;
+  late final bool _contextEnabled;
 
   @override
   void initState() {
     super.initState();
+    _contextEnabled = ref.read(settingsRepositoryProvider).contextTranslation;
     _unit = widget.initialUnit;
-    if (_unit == null) {
-      Future.microtask(_load);
-    } else {
+    Future.microtask(_load);
+    if (_unit != null) {
       Future.microtask(_maybeTapRate);
     }
   }
@@ -147,17 +104,28 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       _error = null;
     });
     final DictionaryEntry? bundle = await _lookupBundle();
-    final TranslationCache cache = ref.read(translationCacheProvider);
-    final TranslateResult? cached = cache.get(widget.wordKey);
     if (!mounted) {
       return;
     }
+    setState(() {
+      _bundle = bundle;
+      if (bundle != null) {
+        // The dictionary meaning is ready: show it at once, the
+        // contextual line may follow from the LLM.
+        _loading = false;
+      }
+    });
+    final TranslationCache cache = ref.read(translationCacheProvider);
+    final TranslateResult? cached = cache.get(widget.wordKey);
     if (cached != null) {
       setState(() {
         _fetched = cached;
-        _bundle = bundle;
         _loading = false;
       });
+      return;
+    }
+    if (!_contextEnabled && bundle != null) {
+      // Nothing left to fetch: the bundle already covers the meaning.
       return;
     }
     bool online = false;
@@ -172,7 +140,6 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     if (!online) {
       setState(() {
         _loading = false;
-        _bundle = bundle;
         _offline = bundle == null;
       });
       return;
@@ -190,7 +157,6 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       }
       setState(() {
         _fetched = result;
-        _bundle = bundle;
         _loading = false;
       });
     } catch (e) {
@@ -199,7 +165,6 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       }
       setState(() {
         _loading = false;
-        _bundle = bundle;
         if (bundle == null) {
           _error = e is AppFailure ? e : const ServerFailure();
         }
@@ -216,73 +181,110 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     }
   }
 
-  Future<void> _add() async {
-    if (_unit != null || _adding) {
+  Future<void> _add() => _addOrMarkKnown(known: false);
+
+  /// Marks the word Known: flips an existing unit or adds it as Known.
+  Future<void> _markKnown() async {
+    final Unit? unit = _unit;
+    if (unit == null) {
+      await _addOrMarkKnown(known: true);
+      return;
+    }
+    if (statusOf(unit) == UnitStatus.known || _adding || _markingKnown) {
       return;
     }
     setState(() {
-      _adding = true;
+      _markingKnown = true;
+    });
+    try {
+      final Unit? updated = await ref
+          .read(unitRepositoryProvider)
+          .setKnown(unit.id, true);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _unit = updated ?? unit.copyWith(knownManual: true);
+        _markingKnown = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _markingKnown = false;
+        _error = const ServerFailure();
+      });
+    }
+  }
+
+  /// Fields for a new unit: the bundled dictionary spelling wins over the
+  /// tapped surface (lookups are case-insensitive, so "Nice" must not enter
+  /// the user's dictionary when the bundle spells the word "nice"); the
+  /// lemma, or the token itself, is the AI fallback (SPEC 5.5).
+  /// Meanings are not stored; they resolve live (PLAN 19.1).
+  ({String text, List<String> forms}) _newUnitFields() {
+    final String lemma = _fetched?.lemma.trim() ?? '';
+    final String bundleKey = _bundle?.textKey.trim() ?? '';
+    final String text = bundleKey.isNotEmpty
+        ? bundleKey
+        : (lemma.isEmpty ? widget.surface.trim() : lemma);
+    final String lemmaKey = normalizeKey(lemma);
+    final Set<String> seen = {};
+    final List<String> forms = [
+      for (final String f in [widget.wordKey, lemmaKey])
+        if (f.isNotEmpty && seen.add(f)) f,
+    ];
+    return (text: text, forms: forms);
+  }
+
+  /// Adds the word to the dictionary, optionally straight into Known.
+  Future<void> _addOrMarkKnown({required bool known}) async {
+    if (_unit != null || _adding || _markingKnown) {
+      return;
+    }
+    setState(() {
+      _adding = !known;
+      _markingKnown = known;
     });
     try {
       final UnitRepository repo = ref.read(unitRepositoryProvider);
-      final String lemma = _fetched?.lemma.trim() ?? '';
-      final String dictionary =
-          (_bundle?.translation ?? _fetched?.translationRu ?? '').trim();
-      late final String text;
-      late final String translationRu;
-      late final List<String> forms;
-      if (lemma.isEmpty) {
-        text = widget.surface.trim();
-        translationRu = dictionary;
-        forms = [widget.wordKey];
-      } else {
-        text = lemma;
-        translationRu = dictionary;
-        final String lemmaKey = normalizeKey(lemma);
-        final List<String> raw = [widget.wordKey, lemmaKey];
-        final Set<String> seen = {};
-        forms = [
-          for (final String f in raw)
-            if (f.isNotEmpty && seen.add(f)) f,
-        ];
-      }
+      final ({String text, List<String> forms}) fields = _newUnitFields();
+      Unit unit;
       try {
-        final Unit created = await repo.add(
-          text: text.isEmpty ? widget.surface.trim() : text,
-          translationRu: translationRu,
-          forms: forms,
+        unit = await repo.add(
+          text: fields.text.isEmpty ? widget.surface.trim() : fields.text,
+          forms: fields.forms,
         );
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _unit = created;
-          _adding = false;
-        });
       } catch (_) {
         final Unit? existing = await repo.findByKey(widget.wordKey);
-        if (!mounted) {
-          return;
+        if (existing == null) {
+          rethrow;
         }
-        if (existing != null) {
-          setState(() {
-            _unit = existing;
-            _adding = false;
-          });
-        } else {
-          setState(() {
-            _adding = false;
-            _error = const ServerFailure();
-          });
-        }
+        unit = existing;
       }
+      if (known && statusOf(unit) != UnitStatus.known) {
+        unit =
+            await repo.setKnown(unit.id, true) ??
+            unit.copyWith(knownManual: true);
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _unit = unit;
+        _adding = false;
+        _markingKnown = false;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _adding = false;
-          _error = const ServerFailure();
-        });
+      if (!mounted) {
+        return;
       }
+      setState(() {
+        _adding = false;
+        _markingKnown = false;
+        _error = const ServerFailure();
+      });
     }
   }
 
@@ -319,24 +321,27 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   @override
   Widget build(BuildContext context) {
     final Unit? unit = _unit;
+    final bool wordKnown = unit != null && statusOf(unit) == UnitStatus.known;
     final String translation;
     String? contextTranslation;
     bool aiGenerated = false;
-    if (unit != null) {
-      translation = unit.translationRu.isEmpty
-          ? '(no translation)'
-          : unit.translationRu;
-    } else if (_loading) {
+    if (_loading) {
       translation = '';
-    } else if (_fetched != null) {
-      translation = _bundle?.translation ?? _fetched!.translationRu;
-      aiGenerated = _bundle == null;
-      final String inContext = _fetched!.translationInContext;
-      if (inContext != translation) {
-        contextTranslation = inContext;
-      }
     } else if (_bundle != null) {
       translation = _bundle!.translation;
+      if (_fetched != null) {
+        final String inContext = _fetched!.translationInContext;
+        if (_contextEnabled && inContext != translation) {
+          contextTranslation = inContext;
+        }
+      }
+    } else if (_fetched != null) {
+      translation = _fetched!.translationRu;
+      aiGenerated = true;
+      final String inContext = _fetched!.translationInContext;
+      if (_contextEnabled && inContext != translation) {
+        contextTranslation = inContext;
+      }
     } else if (_offline) {
       translation = wordPopupOfflineMessage;
     } else if (_error != null) {
@@ -352,10 +357,22 @@ class _WordPopupState extends ConsumerState<WordPopup> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              widget.surface,
-              key: const Key('wordPopupTitle'),
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.surface,
+                    key: const Key('wordPopupTitle'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  key: const Key('wordPopupSpeakButton'),
+                  onPressed: _speak,
+                  icon: const Icon(Icons.volume_up),
+                  tooltip: 'Speak',
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             if (_loading)
@@ -414,7 +431,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                         )
                       : ElevatedButton(
                           key: const Key('wordPopupAddButton'),
-                          onPressed: _adding ? null : _add,
+                          onPressed: _adding || _markingKnown ? null : _add,
                           child: _adding
                               ? const SizedBox(
                                   height: 20,
@@ -426,16 +443,26 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                               : const Text('Add to dictionary'),
                         ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('wordPopupSpeakButton'),
-                    onPressed: _speak,
-                    icon: const Icon(Icons.volume_up),
-                    label: const Text('Speak'),
-                  ),
-                ),
               ],
+            ),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              key: const Key('wordPopupMarkKnownButton'),
+              onPressed: wordKnown || _adding || _markingKnown
+                  ? null
+                  : _markKnown,
+              icon: _markingKnown
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      wordKnown
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                    ),
+              label: Text(wordKnown ? 'Known' : 'Mark as known'),
             ),
           ],
         ),

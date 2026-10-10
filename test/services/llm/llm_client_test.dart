@@ -63,6 +63,12 @@ class FakeSettings implements SettingsRepository {
   }
 
   @override
+  bool get contextTranslation => true;
+
+  @override
+  Future<void> setContextTranslation(bool value) async {}
+
+  @override
   Future<bool> isLlmConfigured() async {
     return baseUrlValue.trim().isNotEmpty && modelValue.trim().isNotEmpty;
   }

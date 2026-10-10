@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'package:parley/core/theme.dart';
 import 'package:parley/data/models/unit.dart';
 import 'tokenizer.dart';
 
@@ -11,9 +12,10 @@ typedef WordTapCallback =
 /// Renders a chat message with tappable words (SPEC 5.4, PLAN 6.5).
 ///
 /// Markers are stripped; dictionary units (not Known) get a thin solid
-/// primary underline, AI-new words outside the dictionary get a thin
-/// dotted tertiary underline, everything else has no styling. All words
-/// (including Known units and plain words) are tappable; gaps are not.
+/// primary underline, every word outside the dictionary gets a thin solid
+/// underline in the normal text color, everything else has no styling.
+/// All words (including Known units and plain words) are tappable; gaps
+/// are not.
 class MessageText extends StatefulWidget {
   const MessageText({
     super.key,
@@ -89,19 +91,16 @@ class _MessageTextState extends State<MessageText> {
   @override
   Widget build(BuildContext context) {
     final TextStyle base = widget.style ?? DefaultTextStyle.of(context).style;
-    final ColorScheme colors = Theme.of(context).colorScheme;
     final TextStyle dictionaryStyle = base.copyWith(
-      color: colors.primary,
+      color: learningWordColor,
       decoration: TextDecoration.underline,
       decorationStyle: TextDecorationStyle.solid,
-      decorationColor: colors.primary,
+      decorationColor: learningWordColor,
       decorationThickness: 1,
     );
-    final TextStyle aiNewStyle = base.copyWith(
-      color: colors.tertiary,
+    final TextStyle unknownStyle = base.copyWith(
       decoration: TextDecoration.underline,
-      decorationStyle: TextDecorationStyle.dotted,
-      decorationColor: colors.tertiary,
+      decorationStyle: TextDecorationStyle.solid,
       decorationThickness: 1,
     );
 
@@ -117,7 +116,7 @@ class _MessageTextState extends State<MessageText> {
       children.add(
         TextSpan(
           text: span.text,
-          style: _styleFor(span, base, dictionaryStyle, aiNewStyle),
+          style: _styleFor(span, base, dictionaryStyle, unknownStyle),
           recognizer: recognizer,
         ),
       );
@@ -132,14 +131,14 @@ class _MessageTextState extends State<MessageText> {
     ChatSpan span,
     TextStyle base,
     TextStyle dictionaryStyle,
-    TextStyle aiNewStyle,
+    TextStyle unknownStyle,
   ) {
     final Unit? unit = span.unit;
-    if (unit != null && statusOf(unit) != UnitStatus.known) {
-      return dictionaryStyle;
+    if (unit == null) {
+      return unknownStyle;
     }
-    if (span.isAiNew && unit == null) {
-      return aiNewStyle;
+    if (statusOf(unit) != UnitStatus.known) {
+      return dictionaryStyle;
     }
     return base;
   }

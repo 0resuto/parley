@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,9 @@ import 'package:parley/features/chat/word_popup.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/llm/llm_client.dart';
+import 'package:parley/services/settings/secure_key_store.dart';
+import 'package:parley/services/settings/settings_repository.dart';
+import 'package:parley/services/translation/translation.dart';
 import 'package:parley/services/tts/tts_service.dart';
 
 import '../../helpers/fake_clock.dart';
@@ -16,9 +21,13 @@ import '../../helpers/fake_dictionary_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 class FakeTranslateLlm implements LlmClient {
-  FakeTranslateLlm(this.script);
+  FakeTranslateLlm(this.script, {this.gate});
 
   final List<Object> script;
+
+  /// When set, [complete] waits for it before returning the reply.
+  final Completer<void>? gate;
+
   final List<List<LlmMessage>> calls = [];
   int _index = 0;
 
@@ -28,6 +37,9 @@ class FakeTranslateLlm implements LlmClient {
     double temperature = 0.2,
   }) async {
     calls.add(messages);
+    if (gate != null) {
+      await gate!.future;
+    }
     final Object next = _index < script.length ? script[_index++] : script.last;
     if (next is String) {
       return next;
@@ -78,6 +90,7 @@ void main() {
     required String wordKey,
     required String sentence,
     Unit? initialUnit,
+    SettingsRepository? settings,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -89,6 +102,9 @@ void main() {
           llmClientProvider.overrideWithValue(llm),
           ttsServiceProvider.overrideWithValue(tts),
           translationCacheProvider.overrideWithValue(cache),
+          settingsRepositoryProvider.overrideWithValue(
+            settings ?? MemorySettingsRepository(MemorySecureKeyStore()),
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -106,25 +122,22 @@ void main() {
   }
 
   group('WordPopup 6.6', () {
-    testWidgets('dictionary word shows stored translation offline', (
+    testWidgets('dictionary word shows the bundle meaning offline', (
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
         '{"lemma":"x","translation_ru":"y","pos":"noun"}',
       ]);
       connectivity.setOnline(false);
-      final Unit created = await units.add(
-        text: 'cow',
-        translationRu: 'корова',
-      );
-      final Unit? stored = await units.findByKey('cow');
+      dictionary = FakeDictionaryService({'cow': 'корова'});
+      final Unit created = await units.add(text: 'cow');
 
       await pumpPopup(
         tester,
         surface: 'cow',
         wordKey: 'cow',
         sentence: 'I see a cow.',
-        initialUnit: stored ?? created,
+        initialUnit: created,
       );
 
       expect(find.byKey(const Key('wordPopupTitle')), findsOneWidget);
@@ -132,6 +145,7 @@ void main() {
       expect(find.text('корова'), findsOneWidget);
       expect(find.byKey(const Key('wordPopupInDictionary')), findsOneWidget);
       expect(find.byKey(const Key('wordPopupAddButton')), findsNothing);
+      expect(dictionary.lookups, greaterThanOrEqualTo(1));
       expect(llm.calls, isEmpty);
     });
 
@@ -218,7 +232,7 @@ void main() {
       );
     });
 
-    testWidgets('Add saves the dictionary meaning, not the contextual one', (
+    testWidgets('Add saves the word spelling and forms, not a meaning', (
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
@@ -238,7 +252,6 @@ void main() {
       final Unit? created = await units.findByKey('banks');
       expect(created, isNotNull);
       expect(created!.text, 'bank');
-      expect(created.translationRu, 'банк');
       expect(created.forms, contains('banks'));
     });
 
@@ -283,6 +296,90 @@ void main() {
       expect(find.text('банк, склад'), findsOneWidget);
       expect(find.text('In this sentence: берег'), findsOneWidget);
       expect(find.byKey(const Key('wordPopupAiWarning')), findsNothing);
+      expect(llm.calls, hasLength(1));
+    });
+
+    testWidgets('bundle meaning shows before the AI context arrives', (
+      WidgetTester tester,
+    ) async {
+      final Completer<void> gate = Completer<void>();
+      llm = FakeTranslateLlm([
+        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+      ], gate: gate);
+      dictionary = FakeDictionaryService({'bank': 'банк, склад'});
+
+      await pumpPopup(
+        tester,
+        surface: 'bank',
+        wordKey: 'bank',
+        sentence: 'We sat on the river bank.',
+      );
+
+      expect(find.text('банк, склад'), findsOneWidget);
+      expect(
+        find.byKey(const Key('wordPopupTranslationContext')),
+        findsNothing,
+      );
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(llm.calls, hasLength(1));
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('In this sentence: берег'), findsOneWidget);
+    });
+
+    testWidgets('context translation off skips the AI call for bundle words', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+      ]);
+      dictionary = FakeDictionaryService({'bank': 'банк, склад'});
+
+      await pumpPopup(
+        tester,
+        surface: 'bank',
+        wordKey: 'bank',
+        sentence: 'We sat on the river bank.',
+        settings: MemorySettingsRepository(
+          MemorySecureKeyStore(),
+          contextTranslation: false,
+        ),
+      );
+
+      expect(find.text('банк, склад'), findsOneWidget);
+      expect(
+        find.byKey(const Key('wordPopupTranslationContext')),
+        findsNothing,
+      );
+      expect(llm.calls, isEmpty);
+    });
+
+    testWidgets('context translation off hides the AI contextual line', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"heifer","translation_ru":"тёлка","translation_in_context":"тёлочка","pos":"noun"}',
+      ]);
+      dictionary = FakeDictionaryService();
+
+      await pumpPopup(
+        tester,
+        surface: 'heifer',
+        wordKey: 'heifer',
+        sentence: 'I saw a heifer.',
+        settings: MemorySettingsRepository(
+          MemorySecureKeyStore(),
+          contextTranslation: false,
+        ),
+      );
+
+      expect(find.text('тёлка'), findsOneWidget);
+      expect(
+        find.byKey(const Key('wordPopupTranslationContext')),
+        findsNothing,
+      );
       expect(llm.calls, hasLength(1));
     });
 
@@ -334,8 +431,34 @@ void main() {
       final Unit? created = await units.findByKey('banks');
       expect(created, isNotNull);
       expect(created!.text, 'banks');
-      expect(created.translationRu, 'банки');
       expect(llm.calls, isEmpty);
+    });
+
+    testWidgets('Add saves the bundle spelling, not the tapped capital', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"Nice","translation_ru":"милый","translation_in_context":"милая","pos":"adj"}',
+      ]);
+      dictionary = FakeDictionaryService({
+        'nice': 'милый, приятный, симпатичный',
+      });
+
+      await pumpPopup(
+        tester,
+        surface: 'Nice',
+        wordKey: 'nice',
+        sentence: 'Nice to meet you.',
+      );
+
+      expect(find.text('милый, приятный, симпатичный'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('wordPopupAddButton')));
+      await tester.pumpAndSettle();
+
+      final Unit? created = await units.findByKey('nice');
+      expect(created, isNotNull);
+      expect(created!.text, 'nice');
     });
 
     testWidgets('offline shows message and Add still works', (
@@ -362,7 +485,6 @@ void main() {
 
       final Unit? created = await units.findByKey('heifer');
       expect(created, isNotNull);
-      expect(created!.translationRu, isEmpty);
       expect(find.byKey(const Key('wordPopupInDictionary')), findsOneWidget);
     });
 
@@ -388,12 +510,85 @@ void main() {
       final Unit? byForm = await units.findByKey('cows');
       expect(byForm, isNotNull);
       expect(byForm!.text, 'cow');
-      expect(byForm.translationRu, 'корова');
       expect(byForm.forms, contains('cows'));
       final Unit? byLemma = await units.findByKey('cow');
       expect(byLemma, isNotNull);
       expect(byLemma!.id, byForm.id);
       expect(find.byKey(const Key('wordPopupInDictionary')), findsOneWidget);
+    });
+
+    testWidgets('Mark as known creates the unit straight into Known', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm(['unused']);
+      connectivity.setOnline(false);
+      dictionary = FakeDictionaryService({'heifer': 'тёлка'});
+
+      await pumpPopup(
+        tester,
+        surface: 'Heifer',
+        wordKey: 'heifer',
+        sentence: 'I saw a heifer.',
+      );
+
+      await tester.tap(find.byKey(const Key('wordPopupMarkKnownButton')));
+      await tester.pumpAndSettle();
+
+      final Unit? created = await units.findByKey('heifer');
+      expect(created, isNotNull);
+      expect(created!.text, 'heifer');
+      expect(statusOf(created), UnitStatus.known);
+      expect(find.byKey(const Key('wordPopupInDictionary')), findsOneWidget);
+      expect(find.text('Known'), findsOneWidget);
+      expect(llm.calls, isEmpty);
+    });
+
+    testWidgets('Mark as known flips an existing unit', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm(['unused']);
+      connectivity.setOnline(false);
+      final Unit created = await units.add(text: 'cow');
+
+      await pumpPopup(
+        tester,
+        surface: 'cow',
+        wordKey: 'cow',
+        sentence: 'I see a cow.',
+        initialUnit: created,
+      );
+
+      expect(find.text('Mark as known'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('wordPopupMarkKnownButton')));
+      await tester.pumpAndSettle();
+
+      final Unit? updated = await units.findByKey('cow');
+      expect(updated, isNotNull);
+      expect(statusOf(updated!), UnitStatus.known);
+      expect(find.text('Known'), findsOneWidget);
+      expect(find.text('Mark as known'), findsNothing);
+    });
+
+    testWidgets('a Known word shows the disabled Known button', (
+      WidgetTester tester,
+    ) async {
+      connectivity.setOnline(false);
+      final Unit created = await units.add(text: 'cow');
+      final Unit? known = await units.setKnown(created.id, true);
+
+      await pumpPopup(
+        tester,
+        surface: 'cow',
+        wordKey: 'cow',
+        sentence: 'I see a cow.',
+        initialUnit: known,
+      );
+
+      final Finder button = find.byKey(const Key('wordPopupMarkKnownButton'));
+      expect(button, findsOneWidget);
+      expect(tester.widget<TextButton>(button).onPressed, isNull);
+      expect(find.text('Known'), findsOneWidget);
     });
 
     testWidgets('Speak calls TtsService with the tapped word', (
@@ -403,10 +598,7 @@ void main() {
         '{"lemma":"x","translation_ru":"y","pos":"noun"}',
       ]);
       connectivity.setOnline(false);
-      final Unit created = await units.add(
-        text: 'cow',
-        translationRu: 'корова',
-      );
+      final Unit created = await units.add(text: 'cow');
 
       await pumpPopup(
         tester,

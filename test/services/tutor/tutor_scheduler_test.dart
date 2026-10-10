@@ -51,6 +51,12 @@ class FakeSchedulerSettings implements SettingsRepository {
   Future<void> setSpeechSpeed(double value) async {}
 
   @override
+  bool get contextTranslation => true;
+
+  @override
+  Future<void> setContextTranslation(bool value) async {}
+
+  @override
   Future<bool> isLlmConfigured() async => configured;
 }
 

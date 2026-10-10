@@ -16,6 +16,10 @@ abstract class SettingsRepository {
 
   double get speechSpeed;
 
+  /// True when the word popup may ask the AI for the in-sentence meaning
+  /// (extra tokens); false keeps the dictionary meaning only (SPEC 5.10).
+  bool get contextTranslation;
+
   Future<void> setBaseUrl(String value);
 
   Future<void> setModel(String value);
@@ -25,6 +29,8 @@ abstract class SettingsRepository {
   Future<void> setAutoPlay(bool value);
 
   Future<void> setSpeechSpeed(double value);
+
+  Future<void> setContextTranslation(bool value);
 
   /// True when url, model and api key are all non-empty.
   Future<bool> isLlmConfigured();
@@ -42,12 +48,14 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
   static const defaultNewWordPercent = 10;
   static const defaultAutoPlay = false;
   static const defaultSpeechSpeed = 1.0;
+  static const defaultContextTranslation = true;
 
   static const _kBaseUrl = 'base_url';
   static const _kModel = 'model';
   static const _kNewWordPercent = 'new_word_percent';
   static const _kAutoPlay = 'auto_play';
   static const _kSpeechSpeed = 'speech_speed';
+  static const _kContextTranslation = 'context_translation';
 
   static int normalizePercent(int value) {
     final int clamped = value.clamp(0, 30);
@@ -80,6 +88,10 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
       normalizeSpeed(_prefs.getDouble(_kSpeechSpeed) ?? defaultSpeechSpeed);
 
   @override
+  bool get contextTranslation =>
+      _prefs.getBool(_kContextTranslation) ?? defaultContextTranslation;
+
+  @override
   Future<void> setBaseUrl(String value) =>
       _prefs.setString(_kBaseUrl, value.trim());
 
@@ -97,6 +109,10 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
   @override
   Future<void> setSpeechSpeed(double value) =>
       _prefs.setDouble(_kSpeechSpeed, normalizeSpeed(value));
+
+  @override
+  Future<void> setContextTranslation(bool value) =>
+      _prefs.setBool(_kContextTranslation, value);
 
   @override
   Future<bool> isLlmConfigured() async {
@@ -121,11 +137,14 @@ class MemorySettingsRepository implements SettingsRepository {
         SharedPreferencesSettingsRepository.defaultNewWordPercent,
     bool autoPlay = SharedPreferencesSettingsRepository.defaultAutoPlay,
     double speechSpeed = SharedPreferencesSettingsRepository.defaultSpeechSpeed,
+    bool contextTranslation =
+        SharedPreferencesSettingsRepository.defaultContextTranslation,
   }) : _baseUrl = baseUrl,
        _model = model,
        _newWordPercent = newWordPercent,
        _autoPlay = autoPlay,
-       _speechSpeed = speechSpeed;
+       _speechSpeed = speechSpeed,
+       _contextTranslation = contextTranslation;
 
   final SecureKeyStore _keyStore;
   String _baseUrl;
@@ -133,6 +152,7 @@ class MemorySettingsRepository implements SettingsRepository {
   int _newWordPercent;
   bool _autoPlay;
   double _speechSpeed;
+  bool _contextTranslation;
 
   @override
   String get baseUrl => _baseUrl;
@@ -150,6 +170,9 @@ class MemorySettingsRepository implements SettingsRepository {
   @override
   double get speechSpeed =>
       SharedPreferencesSettingsRepository.normalizeSpeed(_speechSpeed);
+
+  @override
+  bool get contextTranslation => _contextTranslation;
 
   @override
   Future<void> setBaseUrl(String value) async {
@@ -176,6 +199,11 @@ class MemorySettingsRepository implements SettingsRepository {
   @override
   Future<void> setSpeechSpeed(double value) async {
     _speechSpeed = SharedPreferencesSettingsRepository.normalizeSpeed(value);
+  }
+
+  @override
+  Future<void> setContextTranslation(bool value) async {
+    _contextTranslation = value;
   }
 
   @override

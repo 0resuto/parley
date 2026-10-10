@@ -51,6 +51,12 @@ class FakeJudgeSettings implements SettingsRepository {
   Future<void> setSpeechSpeed(double value) async {}
 
   @override
+  bool get contextTranslation => true;
+
+  @override
+  Future<void> setContextTranslation(bool value) async {}
+
+  @override
   Future<bool> isLlmConfigured() async => configured;
 }
 
@@ -155,8 +161,8 @@ void main() {
     });
 
     test('ratings are applied with source chat', () async {
-      final Unit cow = await units.add(text: 'cow', translationRu: 'корова');
-      final Unit barn = await units.add(text: 'barn', translationRu: 'сарай');
+      final Unit cow = await units.add(text: 'cow');
+      final Unit barn = await units.add(text: 'barn');
       final int id = await makeConversationWith([
         (ChatRole.user, 'I saw a cow near the barn'),
         (ChatRole.assistant, 'The cow in the barn sounds lovely'),

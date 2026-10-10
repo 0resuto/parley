@@ -20,6 +20,7 @@ class FakeSettingsRepository implements SettingsRepository {
     this.percent = 10,
     this.autoPlayValue = false,
     this.speed = 1.0,
+    this.contextTranslationValue = true,
   });
 
   String baseUrlValue;
@@ -27,6 +28,7 @@ class FakeSettingsRepository implements SettingsRepository {
   int percent;
   bool autoPlayValue;
   double speed;
+  bool contextTranslationValue;
 
   @override
   String get baseUrl => baseUrlValue;
@@ -42,6 +44,9 @@ class FakeSettingsRepository implements SettingsRepository {
 
   @override
   double get speechSpeed => speed;
+
+  @override
+  bool get contextTranslation => contextTranslationValue;
 
   @override
   Future<void> setBaseUrl(String value) async {
@@ -66,6 +71,11 @@ class FakeSettingsRepository implements SettingsRepository {
   @override
   Future<void> setSpeechSpeed(double value) async {
     speed = value;
+  }
+
+  @override
+  Future<void> setContextTranslation(bool value) async {
+    contextTranslationValue = value;
   }
 
   @override
@@ -161,6 +171,7 @@ void main() {
 
       expect(find.text('AI provider'), findsOneWidget);
       expect(find.text('Tutor'), findsOneWidget);
+      expect(find.text('Translation'), findsOneWidget);
       expect(
         find.text('Only OpenAI-format models are supported.'),
         findsOneWidget,
@@ -175,10 +186,7 @@ void main() {
       expect(find.text('About'), findsOneWidget);
       expect(find.text('Version 0.1.0'), findsOneWidget);
       expect(find.text('Dictionary data'), findsOneWidget);
-      expect(
-        find.text('WikDict, derived from Wiktionary (CC BY-SA)'),
-        findsOneWidget,
-      );
+      expect(find.text('Wiktionary via kaikki.org (CC BY-SA)'), findsOneWidget);
     });
 
     testWidgets('base url, model and key persist', (WidgetTester tester) async {
@@ -232,6 +240,30 @@ void main() {
       speed.onChanged!(1.2);
       await tester.pumpAndSettle();
       expect(settings.speed, 1.2);
+    });
+
+    testWidgets('in-sentence translation toggle persists', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('contextTranslationSwitch')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'Ask the AI how the word is meant in the sentence '
+          '(uses extra tokens).',
+        ),
+        findsOneWidget,
+      );
+      expect(settings.contextTranslationValue, isTrue);
+
+      await tester.tap(find.byKey(const Key('contextTranslationSwitch')));
+      await tester.pumpAndSettle();
+
+      expect(settings.contextTranslationValue, isFalse);
     });
 
     testWidgets('test connection success shows a message', (
