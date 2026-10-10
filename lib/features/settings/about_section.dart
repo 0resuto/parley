@@ -26,7 +26,7 @@ class AboutSection extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.menu_book_outlined),
           title: Text('Dictionary data'),
-          subtitle: Text('WikDict, derived from Wiktionary (CC BY-SA)'),
+          subtitle: Text('Wiktionary via kaikki.org (CC BY-SA)'),
         ),
       ],
     );
