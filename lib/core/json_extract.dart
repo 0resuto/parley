@@ -255,7 +255,7 @@ Future<T> completeJson<T>(
       messages,
       temperature: temperature,
     );
-    return _parseJson(first, validator);
+    return await _parseJson(first, validator);
   } on InvalidResponseFailure {
     // Fall through to the single retry below.
   }

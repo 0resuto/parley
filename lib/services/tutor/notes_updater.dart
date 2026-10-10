@@ -189,7 +189,7 @@ class NotesUpdater {
         return false;
       }
       if (isValidNotesDocument(first)) {
-        return _commit(chunk, first);
+        return await _commit(chunk, first);
       }
       if (first.length <= notesLimit) {
         return false;
@@ -208,7 +208,7 @@ class NotesUpdater {
       if (!isValidNotesDocument(second)) {
         return false;
       }
-      return _commit(chunk, second);
+      return await _commit(chunk, second);
     } catch (e) {
       debugPrint('notes updater failed: $e');
       return false;
