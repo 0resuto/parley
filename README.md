@@ -148,4 +148,7 @@ live in GitHub Releases.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+The app code is MIT — see [LICENSE](LICENSE). The bundled English–Russian
+dictionary data (`assets/dictionary/`, built by `tool/build_dictionary.py`)
+comes from [WikDict](https://www.wikdict.com/), derived from Wiktionary, and
+is licensed CC BY-SA.

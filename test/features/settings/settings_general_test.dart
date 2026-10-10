@@ -174,6 +174,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('About'), findsOneWidget);
       expect(find.text('Version 0.1.0'), findsOneWidget);
+      expect(find.text('Dictionary data'), findsOneWidget);
+      expect(
+        find.text('WikDict, derived from Wiktionary (CC BY-SA)'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('base url, model and key persist', (WidgetTester tester) async {

@@ -12,6 +12,7 @@ import 'package:parley/services/tts/tts_service.dart';
 
 import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_connectivity_service.dart';
+import '../../helpers/fake_dictionary_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 class FakeTranslateLlm implements LlmClient {
@@ -52,6 +53,7 @@ void main() {
   late FakeUnitRepository units;
   late FakeConnectivityService connectivity;
   late FakeTranslateLlm llm;
+  late FakeDictionaryService dictionary;
   late FakeTtsService tts;
   late TranslationCache cache;
 
@@ -59,8 +61,10 @@ void main() {
     clock = FakeClock(DateTime.utc(2026, 4, 1, 12));
     units = FakeUnitRepository(clock: clock);
     connectivity = FakeConnectivityService();
+    dictionary = FakeDictionaryService();
     tts = FakeTtsService();
     cache = TranslationCache();
+    llm = FakeTranslateLlm(['unused']);
   });
 
   tearDown(() async {
@@ -81,6 +85,7 @@ void main() {
           unitRepositoryProvider.overrideWithValue(units),
           clockProvider.overrideWithValue(clock),
           connectivityServiceProvider.overrideWithValue(connectivity),
+          dictionaryServiceProvider.overrideWithValue(dictionary),
           llmClientProvider.overrideWithValue(llm),
           ttsServiceProvider.overrideWithValue(tts),
           translationCacheProvider.overrideWithValue(cache),
@@ -235,6 +240,102 @@ void main() {
       expect(created!.text, 'bank');
       expect(created.translationRu, 'банк');
       expect(created.forms, contains('banks'));
+    });
+
+    testWidgets('bundle word shows offline without the LLM', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"x","translation_ru":"y","pos":"noun"}',
+      ]);
+      connectivity.setOnline(false);
+      dictionary = FakeDictionaryService({'heifer': 'тёлка'});
+
+      await pumpPopup(
+        tester,
+        surface: 'heifer',
+        wordKey: 'heifer',
+        sentence: 'I saw a heifer.',
+      );
+
+      expect(find.text('тёлка'), findsOneWidget);
+      expect(find.text(wordPopupOfflineMessage), findsNothing);
+      expect(find.byKey(const Key('wordPopupAiWarning')), findsNothing);
+      expect(llm.calls, isEmpty);
+      expect(dictionary.lookups, 1);
+    });
+
+    testWidgets('bundle word online adds the in-sentence line', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+      ]);
+      dictionary = FakeDictionaryService({'bank': 'банк, склад'});
+
+      await pumpPopup(
+        tester,
+        surface: 'bank',
+        wordKey: 'bank',
+        sentence: 'We sat on the river bank.',
+      );
+
+      expect(find.text('банк, склад'), findsOneWidget);
+      expect(find.text('In this sentence: берег'), findsOneWidget);
+      expect(find.byKey(const Key('wordPopupAiWarning')), findsNothing);
+      expect(llm.calls, hasLength(1));
+    });
+
+    testWidgets('missing word is marked AI-generated and explains on tap', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"heifer","translation_ru":"тёлка","pos":"noun"}',
+      ]);
+      dictionary = FakeDictionaryService();
+
+      await pumpPopup(
+        tester,
+        surface: 'heifer',
+        wordKey: 'heifer',
+        sentence: 'I saw a heifer.',
+      );
+
+      expect(find.text('тёлка'), findsOneWidget);
+      expect(find.byKey(const Key('wordPopupAiWarning')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('wordPopupAiWarning')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('AI-generated translation'), findsOneWidget);
+      expect(
+        find.textContaining('not in the bundled dictionary'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Add saves the bundle translation offline', (
+      WidgetTester tester,
+    ) async {
+      connectivity.setOnline(false);
+      dictionary = FakeDictionaryService({'banks': 'банки'});
+
+      await pumpPopup(
+        tester,
+        surface: 'banks',
+        wordKey: 'banks',
+        sentence: 'We sat on the river banks.',
+      );
+
+      expect(find.text('банки'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('wordPopupAddButton')));
+      await tester.pumpAndSettle();
+
+      final Unit? created = await units.findByKey('banks');
+      expect(created, isNotNull);
+      expect(created!.text, 'banks');
+      expect(created.translationRu, 'банки');
+      expect(llm.calls, isEmpty);
     });
 
     testWidgets('offline shows message and Add still works', (

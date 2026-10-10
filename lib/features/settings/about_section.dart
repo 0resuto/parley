@@ -23,6 +23,11 @@ class AboutSection extends StatelessWidget {
           title: Text('Parley'),
           subtitle: Text('Version 0.1.0'),
         ),
+        const ListTile(
+          leading: Icon(Icons.menu_book_outlined),
+          title: Text('Dictionary data'),
+          subtitle: Text('WikDict, derived from Wiktionary (CC BY-SA)'),
+        ),
       ],
     );
   }
