@@ -152,6 +152,8 @@ void main() {
       expect(first[1].content, contains('Word: heifer'));
       expect(first[1].content, contains('I saw a heifer.'));
       expect(cache.get('heifer')?.translationRu, 'телка');
+      // No contextual field in the reply: it falls back to the dictionary one.
+      expect(cache.get('heifer')?.translationInContext, 'телка');
 
       // Second open with the same cache does not call the LLM again.
       await pumpPopup(
@@ -162,6 +164,77 @@ void main() {
       );
       expect(find.text('телка'), findsOneWidget);
       expect(llm.calls, hasLength(1));
+    });
+
+    testWidgets('dictionary meaning first, in-sentence meaning second', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+      ]);
+
+      await pumpPopup(
+        tester,
+        surface: 'bank',
+        wordKey: 'bank',
+        sentence: 'We sat on the river bank.',
+      );
+
+      expect(find.text('банк'), findsOneWidget);
+      expect(find.text('In this sentence: берег'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('wordPopupTranslation'))).dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const Key('wordPopupTranslationContext')))
+              .dy,
+        ),
+      );
+    });
+
+    testWidgets('hides the in-sentence line when the meanings match', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"cow","translation_ru":"корова","translation_in_context":"корова","pos":"noun"}',
+      ]);
+
+      await pumpPopup(
+        tester,
+        surface: 'cow',
+        wordKey: 'cow',
+        sentence: 'I see a cow.',
+      );
+
+      expect(find.text('корова'), findsOneWidget);
+      expect(
+        find.byKey(const Key('wordPopupTranslationContext')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Add saves the dictionary meaning, not the contextual one', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+      ]);
+
+      await pumpPopup(
+        tester,
+        surface: 'banks',
+        wordKey: 'banks',
+        sentence: 'We sat on the river banks.',
+      );
+
+      await tester.tap(find.byKey(const Key('wordPopupAddButton')));
+      await tester.pumpAndSettle();
+
+      final Unit? created = await units.findByKey('banks');
+      expect(created, isNotNull);
+      expect(created!.text, 'bank');
+      expect(created.translationRu, 'банк');
+      expect(created.forms, contains('banks'));
     });
 
     testWidgets('offline shows message and Add still works', (

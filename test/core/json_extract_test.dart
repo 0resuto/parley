@@ -134,6 +134,46 @@ void main() {
       expect(result.pos, TranslatePos.noun);
     });
 
+    test('contextual translation is parsed when different', () {
+      final TranslateResult result = validateTranslateJson({
+        'lemma': 'bank',
+        'translation_ru': 'банк',
+        'translation_in_context': 'берег',
+        'pos': 'noun',
+      });
+      expect(result.translationRu, 'банк');
+      expect(result.translationInContext, 'берег');
+    });
+
+    test('missing or empty contextual translation falls back', () {
+      final TranslateResult missing = validateTranslateJson({
+        'lemma': 'cow',
+        'translation_ru': 'корова',
+        'pos': 'noun',
+      });
+      expect(missing.translationInContext, 'корова');
+
+      final TranslateResult empty = validateTranslateJson({
+        'lemma': 'cow',
+        'translation_ru': 'корова',
+        'translation_in_context': '   ',
+        'pos': 'noun',
+      });
+      expect(empty.translationInContext, 'корова');
+    });
+
+    test('non-string contextual translation throws', () {
+      expect(
+        () => validateTranslateJson({
+          'lemma': 'cow',
+          'translation_ru': 'корова',
+          'translation_in_context': 42,
+          'pos': 'noun',
+        }),
+        throwsA(isA<InvalidResponseFailure>()),
+      );
+    });
+
     test('every pos enum value parses', () {
       const List<String> values = [
         'noun',

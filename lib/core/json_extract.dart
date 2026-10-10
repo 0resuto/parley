@@ -113,11 +113,19 @@ class TranslateResult {
   const TranslateResult({
     required this.lemma,
     required this.translationRu,
+    required this.translationInContext,
     required this.pos,
   });
 
   final String lemma;
+
+  /// Main dictionary meaning (saved to the unit).
   final String translationRu;
+
+  /// Meaning in the given sentence; equals [translationRu] when the
+  /// model did not send a different one (SPEC 6.3).
+  final String translationInContext;
+
   final TranslatePos pos;
 }
 
@@ -125,11 +133,15 @@ class TranslateResult {
 TranslateResult validateTranslateJson(Map<String, dynamic> json) {
   final Object? lemma = json['lemma'];
   final Object? translation = json['translation_ru'];
+  final Object? context = json['translation_in_context'];
   final Object? pos = json['pos'];
   if (lemma is! String || lemma.trim().isEmpty) {
     throw const InvalidResponseFailure();
   }
   if (translation is! String || translation.trim().isEmpty) {
+    throw const InvalidResponseFailure();
+  }
+  if (context != null && context is! String) {
     throw const InvalidResponseFailure();
   }
   if (pos is! String) {
@@ -139,9 +151,12 @@ TranslateResult validateTranslateJson(Map<String, dynamic> json) {
   if (parsed == null) {
     throw const InvalidResponseFailure();
   }
+  final String dictionary = translation.trim();
+  final String inContext = context is String ? context.trim() : '';
   return TranslateResult(
     lemma: lemma.trim(),
-    translationRu: translation.trim(),
+    translationRu: dictionary,
+    translationInContext: inContext.isEmpty ? dictionary : inContext,
     pos: parsed,
   );
 }

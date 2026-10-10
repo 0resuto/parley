@@ -19,10 +19,13 @@ const String wordPopupOfflineMessage = 'Translation isn\'t available offline.';
 /// Verbatim system prompt for translation (SPEC 6.3).
 const String translateSystemPrompt =
     'You are a precise English-Russian dictionary. Output ONLY JSON: '
-    '{"lemma":"...","translation_ru":"...","pos":"noun|verb|adj|adv|phrase|other"}. '
+    '{"lemma":"...","translation_ru":"...","translation_in_context":"...","pos":"noun|verb|adj|adv|phrase|other"}. '
     'lemma is the base form of the word as used in the sentence. '
-    'translation_ru is 1-3 short Russian equivalents separated by commas, '
-    'matching the meaning in the given sentence.';
+    'translation_ru is the main dictionary meaning: 1-3 short Russian equivalents '
+    'separated by commas that describe the word itself, as a dictionary does. '
+    'translation_in_context is 1-3 short Russian equivalents matching the meaning '
+    'in the given sentence; use the same text as translation_ru when the meanings match. '
+    'pos is the part of speech.';
 
 /// Builds the non-streaming translate request (SPEC 6.3).
 List<LlmMessage> buildTranslateMessages(String surface, String sentence) {
@@ -266,6 +269,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   Widget build(BuildContext context) {
     final Unit? unit = _unit;
     final String translation;
+    String? contextTranslation;
     if (unit != null) {
       translation = unit.translationRu.isEmpty
           ? '(no translation)'
@@ -278,6 +282,10 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       translation = _error!.userMessage;
     } else if (_fetched != null) {
       translation = _fetched!.translationRu;
+      final String inContext = _fetched!.translationInContext;
+      if (inContext != translation) {
+        contextTranslation = inContext;
+      }
     } else {
       translation = '';
     }
@@ -297,12 +305,22 @@ class _WordPopupState extends ConsumerState<WordPopup> {
             const SizedBox(height: 8),
             if (_loading)
               const Center(child: CircularProgressIndicator())
-            else
+            else ...[
               Text(
                 translation,
                 key: const Key('wordPopupTranslation'),
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
+              if (contextTranslation != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'In this sentence: $contextTranslation',
+                    key: const Key('wordPopupTranslationContext'),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+            ],
             const SizedBox(height: 12),
             if (_error != null && unit == null && !_offline)
               Padding(
