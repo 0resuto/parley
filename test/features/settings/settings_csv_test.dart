@@ -111,8 +111,8 @@ void main() {
 
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      expect((await repo.findByKey('cow'))?.translationRu, 'корова');
-      expect((await repo.findByKey('milk'))?.translationRu, 'молоко');
+      expect(await repo.findByKey('cow'), isNotNull);
+      expect(await repo.findByKey('milk'), isNotNull);
     });
 
     testWidgets('import cancel picks nothing and stays quiet', (

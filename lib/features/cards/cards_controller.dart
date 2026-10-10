@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/core/clock.dart';
@@ -10,26 +8,21 @@ import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/services/srs/review_service.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
-/// Which side of the card shows first (SPEC 5.2, random 50/50).
-enum CardDirection {
-  /// English text first, Russian after reveal.
-  englishFirst,
-
-  /// Russian translation first, English after reveal.
-  russianFirst,
-}
-
-/// Cards queue state (PLAN 3.1).
+/// Cards queue state (PLAN 3.1, PLAN 19.1).
 ///
 /// [queue] is non-Known units with `due <= now`, oldest due first.
 /// [current] is the first queue item (or null when empty).
+/// [meaning] is the current card's meaning resolved live from the active
+/// sources (null until resolved); cards show the English word first and
+/// reveal this meaning.
 /// [error] is non-null when the queue could not be loaded or an action
 /// failed; the screen shows it with a Retry button (PLAN 9.1).
 class CardsState {
   const CardsState({
     required this.queue,
     required this.revealed,
-    required this.direction,
+    required this.meaning,
+    required this.resolving,
     required this.isLoading,
     this.error,
   });
@@ -37,13 +30,15 @@ class CardsState {
   const CardsState.initial()
     : queue = const [],
       revealed = false,
-      direction = CardDirection.englishFirst,
+      meaning = null,
+      resolving = false,
       isLoading = true,
       error = null;
 
   final List<Unit> queue;
   final bool revealed;
-  final CardDirection direction;
+  final String? meaning;
+  final bool resolving;
   final bool isLoading;
 
   /// English error text shown with a Retry button (null when none).
@@ -61,7 +56,8 @@ class CardsState {
   CardsState copyWith({
     List<Unit>? queue,
     bool? revealed,
-    CardDirection? direction,
+    String? meaning,
+    bool? resolving,
     bool? isLoading,
     String? error,
     bool clearError = false,
@@ -69,17 +65,13 @@ class CardsState {
     return CardsState(
       queue: queue ?? this.queue,
       revealed: revealed ?? this.revealed,
-      direction: direction ?? this.direction,
+      meaning: meaning ?? this.meaning,
+      resolving: resolving ?? this.resolving,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
     );
   }
 }
-
-/// Injectable randomness for the card direction (50/50).
-///
-/// Tests override this with a seeded or stub [Random].
-final randomProvider = Provider<Random>((ref) => Random());
 
 /// Applies FSRS reviews for the cards queue (source `card`).
 final reviewServiceProvider = Provider<ReviewService>((ref) {
@@ -93,10 +85,10 @@ final reviewServiceProvider = Provider<ReviewService>((ref) {
 /// Cards queue controller (PLAN 3.1, SPEC 5.2).
 ///
 /// Call [refresh] after creation (the cards screen does this on init).
-/// [reveal] shows the answer. [rate] reviews through [ReviewService] with
-/// source `card`. [markKnown] excludes the card via `setKnown`.
-/// After [rate], [markKnown] and [refresh] the queue is re-read and
-/// [revealed] resets to false with a fresh [direction].
+/// [reveal] shows the answer and resolves the meaning. [rate] reviews
+/// through [ReviewService] with source `card`. [markKnown] excludes the
+/// card via `setKnown`. After [rate], [markKnown] and [refresh] the queue
+/// is re-read and [revealed] resets to false.
 class CardsController extends Notifier<CardsState> {
   @override
   CardsState build() {
@@ -110,7 +102,6 @@ class CardsController extends Notifier<CardsState> {
   Future<void> refresh() async {
     final UnitRepository units = ref.read(unitRepositoryProvider);
     final Clock clock = ref.read(clockProvider);
-    final Random random = ref.read(randomProvider);
     try {
       final List<Unit> queue = await units.dueQueue(clock.now());
       if (!ref.mounted) {
@@ -119,7 +110,8 @@ class CardsController extends Notifier<CardsState> {
       state = CardsState(
         queue: queue,
         revealed: false,
-        direction: queue.isEmpty ? state.direction : _pickDirection(random),
+        meaning: null,
+        resolving: false,
         isLoading: false,
       );
     } catch (_) {
@@ -131,11 +123,27 @@ class CardsController extends Notifier<CardsState> {
   }
 
   /// Shows the answer side of the current card.
-  void reveal() {
-    if (state.isLoading || state.revealed || state.queue.isEmpty) {
+  ///
+  /// The meaning is resolved live (bundle first, then the LLM when online);
+  /// the back side shows a spinner until it lands (PLAN 19.1).
+  Future<void> reveal() async {
+    final Unit? current = state.current;
+    if (current == null || state.isLoading || state.revealed) {
       return;
     }
-    state = state.copyWith(revealed: true);
+    state = state.copyWith(revealed: true, resolving: true);
+    String? meaning;
+    try {
+      meaning = await ref
+          .read(meaningResolverProvider)
+          .resolve(current.textKey);
+    } catch (_) {
+      meaning = null;
+    }
+    if (!ref.mounted || state.current?.id != current.id) {
+      return;
+    }
+    state = state.copyWith(meaning: meaning, resolving: false);
   }
 
   /// Rates the current card and moves to the next one.
@@ -180,12 +188,6 @@ class CardsController extends Notifier<CardsState> {
       return;
     }
     await refresh();
-  }
-
-  CardDirection _pickDirection(Random random) {
-    return random.nextBool()
-        ? CardDirection.englishFirst
-        : CardDirection.russianFirst;
   }
 }
 

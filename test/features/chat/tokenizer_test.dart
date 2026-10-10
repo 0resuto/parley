@@ -18,7 +18,6 @@ Unit _unit({
     text: text,
     textKey: key,
     forms: forms,
-    translationRu: '',
     description: null,
     knownManual: known,
     phase: phase,

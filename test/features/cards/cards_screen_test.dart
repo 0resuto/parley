@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,32 +8,15 @@ import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/unit_repository.dart';
 import 'package:parley/features/cards/cards_controller.dart';
 import 'package:parley/features/cards/cards_screen.dart';
+import 'package:parley/features/chat/chat_controller.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/services/srs/review_service.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
 import '../../helpers/fake_clock.dart';
+import '../../helpers/fake_connectivity_service.dart';
+import '../../helpers/fake_dictionary_service.dart';
 import '../../helpers/fake_unit_repository.dart';
-
-class StubRandom implements Random {
-  StubRandom(this.values);
-
-  final List<bool> values;
-  int _index = 0;
-
-  @override
-  bool nextBool() {
-    final bool value = values[_index % values.length];
-    _index++;
-    return value;
-  }
-
-  @override
-  double nextDouble() => 0.0;
-
-  @override
-  int nextInt(int max) => 0;
-}
 
 /// ReviewService double that works on the fake repository.
 ///
@@ -129,7 +110,13 @@ void main() {
     await dummyDb.close();
   });
 
-  Future<void> pumpCards(WidgetTester tester, {Random? random}) async {
+  Future<void> pumpCards(
+    WidgetTester tester, {
+    FakeDictionaryService? dictionary,
+  }) async {
+    final FakeConnectivityService connectivity = FakeConnectivityService();
+    addTearDown(connectivity.dispose);
+    connectivity.setOnline(false);
     final StubReviewService reviews = StubReviewService(
       db: dummyDb,
       units: repo,
@@ -140,7 +127,11 @@ void main() {
         overrides: [
           unitRepositoryProvider.overrideWithValue(repo),
           clockProvider.overrideWithValue(clock),
-          randomProvider.overrideWithValue(random ?? StubRandom([true])),
+          connectivityServiceProvider.overrideWithValue(connectivity),
+          dictionaryServiceProvider.overrideWithValue(
+            dictionary ??
+                FakeDictionaryService({'cow': 'корова', 'milk': 'молоко'}),
+          ),
           reviewServiceProvider.overrideWithValue(reviews),
         ],
         child: const MaterialApp(home: CardsScreen()),
@@ -163,10 +154,10 @@ void main() {
     testWidgets('full cycle: reveal, rate, mark known', (
       WidgetTester tester,
     ) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
-      await repo.add(text: 'Milk', translationRu: 'молоко');
+      await repo.add(text: 'Cow');
+      await repo.add(text: 'Milk');
 
-      await pumpCards(tester, random: StubRandom([true]));
+      await pumpCards(tester);
 
       expect(find.text('2 left'), findsOneWidget);
       expect(find.text('Cow'), findsOneWidget);
@@ -205,12 +196,12 @@ void main() {
       expect(find.text('Milk'), findsNothing);
     });
 
-    testWidgets('english-first shows English before the answer', (
+    testWidgets('front shows the English word and hides the meaning', (
       WidgetTester tester,
     ) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
+      await repo.add(text: 'Cow');
 
-      await pumpCards(tester, random: StubRandom([true]));
+      await pumpCards(tester);
 
       expect(find.text('Cow'), findsOneWidget);
       expect(find.text('корова'), findsNothing);
@@ -222,21 +213,17 @@ void main() {
       expect(find.text('корова'), findsOneWidget);
     });
 
-    testWidgets('russian-first shows Russian before the answer', (
+    testWidgets('a missing meaning shows the placeholder', (
       WidgetTester tester,
     ) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
+      await repo.add(text: 'Heifer');
 
-      await pumpCards(tester, random: StubRandom([false]));
-
-      expect(find.text('корова'), findsOneWidget);
-      expect(find.text('Cow'), findsNothing);
+      await pumpCards(tester, dictionary: FakeDictionaryService());
 
       await tester.tap(find.text('Show answer'));
       await tester.pumpAndSettle();
 
-      expect(find.text('корова'), findsOneWidget);
-      expect(find.text('Cow'), findsOneWidget);
+      expect(find.text('(no meaning)'), findsOneWidget);
     });
 
     testWidgets('queue load failure shows an error with Retry', (
@@ -255,7 +242,6 @@ void main() {
           overrides: [
             unitRepositoryProvider.overrideWithValue(failing),
             clockProvider.overrideWithValue(clock),
-            randomProvider.overrideWithValue(StubRandom([true])),
             reviewServiceProvider.overrideWithValue(reviews),
           ],
           child: const MaterialApp(home: CardsScreen()),
@@ -274,7 +260,7 @@ void main() {
       final FlakyDueQueueRepository flaky = FlakyDueQueueRepository(
         clock: clock,
       );
-      await flaky.add(text: 'Cow', translationRu: 'корова');
+      await flaky.add(text: 'Cow');
       final StubReviewService reviews = StubReviewService(
         db: dummyDb,
         units: flaky,
@@ -285,7 +271,6 @@ void main() {
           overrides: [
             unitRepositoryProvider.overrideWithValue(flaky),
             clockProvider.overrideWithValue(clock),
-            randomProvider.overrideWithValue(StubRandom([true])),
             reviewServiceProvider.overrideWithValue(reviews),
           ],
           child: const MaterialApp(home: CardsScreen()),

@@ -24,13 +24,13 @@ void main() {
   });
 
   group('CsvImporter', () {
-    test('adds word and translation pairs', () async {
+    test('adds the words, ignoring the translation column', () async {
       final summary = await importer.importCsv('cow;корова\nmilk;молоко');
 
       expect(summary.added, 2);
       expect(summary.skipped, 0);
-      expect((await units.findByKey('cow'))?.translationRu, 'корова');
-      expect((await units.findByKey('milk'))?.translationRu, 'молоко');
+      expect(await units.findByKey('cow'), isNotNull);
+      expect(await units.findByKey('milk'), isNotNull);
     });
 
     test('header line is ignored', () async {
@@ -39,7 +39,7 @@ void main() {
       expect(summary.added, 1);
       expect(summary.skipped, 0);
       expect(await units.findByKey('word'), isNull);
-      expect((await units.findByKey('cow'))?.translationRu, 'корова');
+      expect(await units.findByKey('cow'), isNotNull);
     });
 
     test('empty lines are skipped', () async {
@@ -51,10 +51,10 @@ void main() {
       expect(summary.skipped, 0);
     });
 
-    test('missing translation creates a unit with empty translation', () async {
+    test('the translation column is optional', () async {
       final withSemicolon = await importer.importCsv('cow;');
       expect(withSemicolon.added, 1);
-      expect((await units.findByKey('cow'))?.translationRu, '');
+      expect(await units.findByKey('cow'), isNotNull);
 
       await db.close();
       db = AppDatabase(NativeDatabase.memory());
@@ -63,11 +63,11 @@ void main() {
 
       final withoutSemicolon = await importer.importCsv('bread');
       expect(withoutSemicolon.added, 1);
-      expect((await units.findByKey('bread'))?.translationRu, '');
+      expect(await units.findByKey('bread'), isNotNull);
     });
 
     test('existing duplicates are skipped', () async {
-      await units.add(text: 'Cow', translationRu: 'корова');
+      await units.add(text: 'Cow');
 
       final summary = await importer.importCsv(
         'cow;другая\nCOW;ещё\nmilk;молоко',
@@ -75,9 +75,8 @@ void main() {
 
       expect(summary.added, 1);
       expect(summary.skipped, 2);
-      // The stored translation is untouched.
-      expect((await units.findByKey('cow'))?.translationRu, 'корова');
-      expect((await units.findByKey('milk'))?.translationRu, 'молоко');
+      expect(await units.findByKey('cow'), isNotNull);
+      expect(await units.findByKey('milk'), isNotNull);
     });
 
     test('duplicates within the file are skipped', () async {
@@ -94,7 +93,7 @@ void main() {
 
         expect(summary.added, 1);
         expect(summary.skipped, 0);
-        expect((await units.findByKey('cow'))?.translationRu, 'корова');
+        expect(await units.findByKey('cow'), isNotNull);
       },
     );
 

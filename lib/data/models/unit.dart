@@ -25,13 +25,14 @@ enum UnitStatus {
 ///
 /// Mirrors the `units` table. [forms] holds extra normalized keys
 /// (inflections, surface forms). [textKey] is [normalizeKey(text)].
+/// Meanings are not stored: they resolve live from the active dictionary
+/// sources (PLAN 19.1).
 class Unit {
   const Unit({
     required this.id,
     required this.text,
     required this.textKey,
     required this.forms,
-    required this.translationRu,
     required this.description,
     required this.knownManual,
     required this.phase,
@@ -46,7 +47,6 @@ class Unit {
   final String text;
   final String textKey;
   final List<String> forms;
-  final String translationRu;
   final String? description;
   final bool knownManual;
   final CardPhase phase;
@@ -61,7 +61,6 @@ class Unit {
     String? text,
     String? textKey,
     List<String>? forms,
-    String? translationRu,
     String? description,
     bool? knownManual,
     CardPhase? phase,
@@ -76,7 +75,6 @@ class Unit {
       text: text ?? this.text,
       textKey: textKey ?? this.textKey,
       forms: forms ?? this.forms,
-      translationRu: translationRu ?? this.translationRu,
       description: description ?? this.description,
       knownManual: knownManual ?? this.knownManual,
       phase: phase ?? this.phase,
@@ -101,7 +99,6 @@ class Unit {
         other.text == text &&
         other.textKey == textKey &&
         _equalLists(other.forms, forms) &&
-        other.translationRu == translationRu &&
         other.description == description &&
         other.knownManual == knownManual &&
         other.phase == phase &&
@@ -119,7 +116,6 @@ class Unit {
       text,
       textKey,
       Object.hashAll(forms),
-      translationRu,
       description,
       knownManual,
       phase,

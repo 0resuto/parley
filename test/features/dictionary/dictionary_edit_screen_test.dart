@@ -86,15 +86,13 @@ void main() {
       await pumpHarness(tester);
       expect(find.text('Add word'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField).first, 'Cow');
-      await tester.enterText(find.byType(TextField).last, 'корова');
+      await tester.enterText(find.byType(TextField), 'Cow');
       await save(tester);
 
       expect(find.text('Open editor'), findsOneWidget);
       final Unit? created = await repo.findByKey('cow');
       expect(created, isNotNull);
       expect(created!.text, 'Cow');
-      expect(created.translationRu, 'корова');
     });
 
     testWidgets('add shows an error when the word is empty', (
@@ -129,7 +127,6 @@ void main() {
     ) async {
       final Unit created = await repo.add(
         text: 'Cow',
-        translationRu: 'корова',
         description: 'A farm animal',
       );
       await pumpHarness(tester, unitId: created.id);
@@ -137,7 +134,7 @@ void main() {
 
       // Existing values are shown, with dates and the description.
       expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
         'Cow',
       );
       expect(find.textContaining('Added:'), findsOneWidget);
@@ -146,14 +143,12 @@ void main() {
       expect(find.text('A farm animal'), findsOneWidget);
       expect(find.text('I already know this'), findsOneWidget);
 
-      await tester.enterText(find.byType(TextField).first, 'Milk');
-      await tester.enterText(find.byType(TextField).last, 'молоко');
+      await tester.enterText(find.byType(TextField), 'Milk');
       await save(tester);
 
       expect(find.text('Open editor'), findsOneWidget);
       final Unit? updated = await repo.getById(created.id);
       expect(updated?.text, 'Milk');
-      expect(updated?.translationRu, 'молоко');
     });
 
     testWidgets('edit shows a duplicate error for another unit', (

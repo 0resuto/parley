@@ -99,7 +99,7 @@ void main() {
       rules: '# Exported rules',
       notes: '# Exported notes',
     );
-    await otherRepo.add(text: 'Cow', translationRu: 'корова');
+    await otherRepo.add(text: 'Cow');
     return ExportService(
       database: db,
       units: otherRepo,
@@ -110,7 +110,7 @@ void main() {
 
   group('SettingsScreen Data', () {
     testWidgets('export shares a backup file', (WidgetTester tester) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
+      await repo.add(text: 'Cow');
       await pumpSettings(tester);
 
       await tester.ensureVisible(find.text('Export JSON'));
@@ -151,7 +151,7 @@ void main() {
 
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
-      expect((await repo.findByKey('cow'))?.translationRu, 'корова');
+      expect(await repo.findByKey('cow'), isNotNull);
     });
 
     testWidgets('import cancel picks nothing and stays quiet', (

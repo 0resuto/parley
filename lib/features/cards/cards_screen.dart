@@ -7,11 +7,11 @@ import 'cards_controller.dart';
 
 /// Flashcards queue per SPEC 5.2.
 ///
-/// Shows the remaining count, the current card (English or Russian first
-/// per [CardDirection]), a `Show answer` button, then the four rating
-/// buttons. The overflow menu holds `Mark as known`. Empty queue shows
-/// `All caught up.`. All actions go through [CardsController]; this widget
-/// holds no business logic.
+/// Shows the remaining count, the current card (English word on the front,
+/// the meaning resolved live on the back), a `Show answer` button, then the
+/// four rating buttons. The overflow menu holds `Mark as known`. Empty queue
+/// shows `All caught up.`. All actions go through [CardsController]; this
+/// widget holds no business logic.
 class CardsScreen extends ConsumerStatefulWidget {
   const CardsScreen({super.key});
 
@@ -63,8 +63,7 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
           if (current == null) {
             return const Center(child: Text('All caught up.'));
           }
-          final String front = _frontText(current, state.direction);
-          final String back = _backText(current, state.direction);
+          final String front = current.text;
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -106,10 +105,24 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                       ),
                       if (state.revealed) ...[
                         const SizedBox(height: 12),
-                        Text(
-                          back,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
+                        if (state.resolving)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                key: const Key('cardMeaningSpinner'),
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            state.meaning ?? '(no meaning)',
+                            key: const Key('cardMeaning'),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                       ],
                       const SizedBox(height: 16),
                       if (!state.revealed)
@@ -145,26 +158,4 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
       child: Text(label),
     );
   }
-}
-
-/// Front side text for [direction].
-String _frontText(Unit unit, CardDirection direction) {
-  if (direction == CardDirection.englishFirst) {
-    return unit.text;
-  }
-  if (unit.translationRu.isEmpty) {
-    return '(no translation)';
-  }
-  return unit.translationRu;
-}
-
-/// Back side text (the other side) for [direction].
-String _backText(Unit unit, CardDirection direction) {
-  if (direction == CardDirection.englishFirst) {
-    if (unit.translationRu.isEmpty) {
-      return '(no translation)';
-    }
-    return unit.translationRu;
-  }
-  return unit.text;
 }

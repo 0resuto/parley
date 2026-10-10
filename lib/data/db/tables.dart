@@ -5,7 +5,6 @@ class Units extends Table {
   TextColumn get unitText => text().named('text')();
   TextColumn get textKey => text().unique()();
   TextColumn get forms => text().withDefault(const Constant('[]'))();
-  TextColumn get translationRu => text().withDefault(const Constant(''))();
   TextColumn get description => text().nullable()();
   BoolColumn get knownManual => boolean().withDefault(const Constant(false))();
   IntColumn get phase => integer()();

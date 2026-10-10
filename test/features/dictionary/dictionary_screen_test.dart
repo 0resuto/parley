@@ -7,6 +7,7 @@ import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/dictionary/dictionary_screen.dart';
 
 import '../../helpers/fake_clock.dart';
+import '../../helpers/fake_dictionary_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 void main() {
@@ -25,6 +26,9 @@ void main() {
         overrides: [
           unitRepositoryProvider.overrideWithValue(repo),
           clockProvider.overrideWithValue(clock),
+          dictionaryServiceProvider.overrideWithValue(
+            FakeDictionaryService({'cow': 'корова', 'milk': 'молоко'}),
+          ),
         ],
         child: const MaterialApp(home: DictionaryScreen()),
       ),
@@ -33,11 +37,11 @@ void main() {
   }
 
   group('DictionaryScreen', () {
-    testWidgets('lists items with translation, status chip and due', (
+    testWidgets('lists items with the resolved meaning, status chip and due', (
       WidgetTester tester,
     ) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
-      await repo.add(text: 'Milk', translationRu: 'молоко');
+      await repo.add(text: 'Cow');
+      await repo.add(text: 'Milk');
 
       await pumpDictionary(tester);
 
@@ -53,8 +57,8 @@ void main() {
     });
 
     testWidgets('search filters the list', (WidgetTester tester) async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
-      await repo.add(text: 'Milk', translationRu: 'молоко');
+      await repo.add(text: 'Cow');
+      await repo.add(text: 'Milk');
 
       await pumpDictionary(tester);
       expect(find.text('Cow'), findsOneWidget);

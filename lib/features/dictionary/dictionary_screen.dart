@@ -7,12 +7,13 @@ import 'package:parley/data/repositories/unit_repository.dart';
 import 'dictionary_edit_screen.dart';
 import 'dictionary_providers.dart';
 import 'relative_due.dart';
+import 'word_meaning.dart';
 
 /// Dictionary list per SPEC 5.1.
 ///
 /// Search + status chips filter through [UnitRepository.watchAll].
-/// Rows show text, translation, status chip and relative due.
-/// The FAB opens the add/edit screen (stubbed until task 2.5).
+/// Rows show text, the resolved meaning, status chip and relative due.
+/// The FAB opens the add/edit screen.
 class DictionaryScreen extends ConsumerStatefulWidget {
   const DictionaryScreen({super.key});
 
@@ -119,8 +120,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (unit.translationRu.isNotEmpty)
-                            Text(unit.translationRu),
+                          WordMeaning(textKey: unit.textKey),
                           const SizedBox(height: 4),
                           Row(
                             children: [

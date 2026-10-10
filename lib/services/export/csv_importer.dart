@@ -20,10 +20,10 @@ class CsvImportSummary {
 /// CSV import per SPEC 4.6.
 ///
 /// Delimiter `;`, UTF-8, one unit per line: `word;translation`
-/// (translation optional). Empty lines and existing duplicates are
-/// skipped. An optional first-line header `word;translation` is
-/// ignored. No quoting support: lines are split on `;` and only the
-/// first two columns are used.
+/// (translation optional and ignored: meanings resolve live, PLAN 19.1).
+/// Empty lines and existing duplicates are skipped. An optional first-line
+/// header `word;translation` is ignored. No quoting support: lines are split
+/// on `;` and only the first two columns are used.
 class CsvImporter {
   CsvImporter({required UnitRepository units}) : _units = units;
 
@@ -52,7 +52,6 @@ class CsvImporter {
       }
       final List<String> parts = rawLine.split(';');
       final String word = parts.first.trim();
-      final String translation = parts.length > 1 ? parts[1].trim() : '';
       if (word.isEmpty || normalizeKey(word).isEmpty) {
         continue;
       }
@@ -61,7 +60,7 @@ class CsvImporter {
         skipped++;
         continue;
       }
-      await _units.add(text: word, translationRu: translation);
+      await _units.add(text: word);
       added++;
     }
     return CsvImportSummary(added: added, skipped: skipped);

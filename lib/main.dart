@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parley/app.dart';
 import 'package:parley/core/clock.dart';
-import 'package:parley/features/chat/word_popup.dart';
+import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/dictionary/dictionary_initializer.dart';
 import 'package:parley/services/dictionary/dictionary_service.dart';

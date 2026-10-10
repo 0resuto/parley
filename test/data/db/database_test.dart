@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/data/db/database.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   late AppDatabase db;
@@ -36,7 +39,6 @@ void main() {
     expect(rows.first.unitText, 'Cow');
     expect(rows.first.textKey, 'cow');
     expect(rows.first.forms, '[]');
-    expect(rows.first.translationRu, '');
     expect(rows.first.knownManual, isFalse);
     expect(rows.first.phase, 0);
 
@@ -169,5 +171,35 @@ void main() {
 
     expect(await db.select(db.units).get(), isEmpty);
     expect(await db.select(db.reviews).get(), isEmpty);
+  });
+
+  test('a v1 database migrates to v2 keeping units and reviews', () async {
+    final Directory dir = await Directory.systemTemp.createTemp(
+      'parley_migration_test',
+    );
+    addTearDown(() async {
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    });
+    final File file = File(p.join(dir.path, 'v1.sqlite'));
+    await File(p.join('test', 'fixtures', 'db_v1.sqlite')).copy(file.path);
+
+    final AppDatabase migrated = AppDatabase(NativeDatabase(file));
+    addTearDown(migrated.close);
+
+    final List<Unit> rows = await migrated.select(migrated.units).get();
+    expect(rows, hasLength(1));
+    expect(rows.first.unitText, 'Cow');
+    expect(rows.first.textKey, 'cow');
+    expect(rows.first.forms, '["cows"]');
+    expect(rows.first.knownManual, isFalse);
+
+    final List<Review> reviewRows = await migrated
+        .select(migrated.reviews)
+        .get();
+    expect(reviewRows, hasLength(1));
+    expect(reviewRows.first.rating, 3);
+    expect(reviewRows.first.source, 'card');
   });
 }

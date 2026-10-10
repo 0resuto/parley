@@ -11,10 +11,21 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) async {
+      await m.createAll();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        // 19.1: meanings resolve live from the active sources, so units no
+        // longer store a translation. drift keeps foreign keys off while
+        // the table is recreated, so review history is preserved.
+        await m.alterTable(TableMigration(units));
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },

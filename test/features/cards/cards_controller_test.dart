@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,27 +9,7 @@ import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
 import '../../helpers/fake_clock.dart';
-
-/// Deterministic [Random] returning [values] in order for [nextBool].
-class StubRandom implements Random {
-  StubRandom(this.values);
-
-  final List<bool> values;
-  int _index = 0;
-
-  @override
-  bool nextBool() {
-    final bool value = values[_index % values.length];
-    _index++;
-    return value;
-  }
-
-  @override
-  double nextDouble() => 0.0;
-
-  @override
-  int nextInt(int max) => 0;
-}
+import '../../helpers/fake_dictionary_service.dart';
 
 void main() {
   late AppDatabase db;
@@ -39,12 +17,13 @@ void main() {
   late ProviderContainer container;
   final DateTime initial = DateTime.utc(2026, 2, 1, 12);
 
-  ProviderContainer makeContainer({Random? random}) {
+  ProviderContainer makeContainer({FakeDictionaryService? dictionary}) {
     return ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         clockProvider.overrideWithValue(clock),
-        randomProvider.overrideWithValue(random ?? Random(42)),
+        if (dictionary != null)
+          dictionaryServiceProvider.overrideWithValue(dictionary),
       ],
     );
   }
@@ -205,18 +184,31 @@ void main() {
       expect(state.current, isNull);
     });
 
-    test('direction comes from the injected Random', () async {
+    test('reveal resolves the meaning from the bundled dictionary', () async {
       container.dispose();
-      container = makeContainer(random: StubRandom([true]));
+      container = makeContainer(
+        dictionary: FakeDictionaryService({'cow': 'корова'}),
+      );
       await addWord('cow');
-      CardsState state = await refresh();
-      expect(state.direction, CardDirection.englishFirst);
+      await refresh();
 
-      container.dispose();
-      container = makeContainer(random: StubRandom([false]));
-      // Same database, queue still has the word.
-      state = await refresh();
-      expect(state.direction, CardDirection.russianFirst);
+      await container.read(cardsControllerProvider.notifier).reveal();
+
+      final CardsState state = container.read(cardsControllerProvider);
+      expect(state.revealed, isTrue);
+      expect(state.resolving, isFalse);
+      expect(state.meaning, 'корова');
+    });
+
+    test('reveal without a source leaves the meaning empty', () async {
+      await addWord('cow');
+      await refresh();
+
+      await container.read(cardsControllerProvider.notifier).reveal();
+
+      final CardsState state = container.read(cardsControllerProvider);
+      expect(state.revealed, isTrue);
+      expect(state.meaning, isNull);
     });
   });
 }

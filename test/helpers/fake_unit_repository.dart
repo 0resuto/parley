@@ -22,7 +22,6 @@ class FakeUnitRepository implements UnitRepository {
   @override
   Future<Unit> add({
     required String text,
-    String translationRu = '',
     String? description,
     List<String> forms = const [],
   }) async {
@@ -44,7 +43,6 @@ class FakeUnitRepository implements UnitRepository {
       text: trimmed,
       textKey: key,
       forms: _normalizeForms(forms, key),
-      translationRu: translationRu,
       description: description,
       knownManual: false,
       phase: card.phase,
@@ -98,7 +96,6 @@ class FakeUnitRepository implements UnitRepository {
       units = units.where(
         (u) =>
             u.text.toLowerCase().contains(needle) ||
-            u.translationRu.toLowerCase().contains(needle) ||
             u.textKey.contains(normNeedle),
       );
     }

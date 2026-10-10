@@ -23,7 +23,6 @@ class UnitRepository {
   /// Throws when [text] is blank or [textKey] already exists.
   Future<Unit> add({
     required String text,
-    String translationRu = '',
     String? description,
     List<String> forms = const [],
   }) async {
@@ -46,7 +45,6 @@ class UnitRepository {
             unitText: trimmed,
             textKey: key,
             forms: Value(encodeForms(normalizedForms)),
-            translationRu: Value(translationRu),
             description: Value(description),
             phase: card.phase.value,
             due: card.due,
@@ -109,7 +107,6 @@ class UnitRepository {
         unitText: Value(trimmed),
         textKey: Value(key),
         forms: Value(encodeForms(normalizedForms)),
-        translationRu: Value(unit.translationRu),
         description: Value(unit.description),
         knownManual: Value(unit.knownManual),
         phase: Value(unit.phase.value),
@@ -139,8 +136,8 @@ class UnitRepository {
 
   /// Watches all units, newest first.
   ///
-  /// [status] filters by derived status, [query] matches text,
-  /// translation or key (case-insensitive, substring).
+  /// [status] filters by derived status, [query] matches text or key
+  /// (case-insensitive, substring).
   Stream<List<Unit>> watchAll({UnitStatus? status, String? query}) {
     final String needle = (query ?? '').trim().toLowerCase();
     final String normNeedle = needle.isEmpty ? '' : normalizeKey(needle);
@@ -158,7 +155,6 @@ class UnitRepository {
         units = units.where(
           (u) =>
               u.text.toLowerCase().contains(needle) ||
-              u.translationRu.toLowerCase().contains(needle) ||
               u.textKey.contains(normNeedle),
         );
       }
@@ -269,7 +265,6 @@ class UnitRepository {
       text: row.unitText,
       textKey: row.textKey,
       forms: decodeForms(row.forms),
-      translationRu: row.translationRu,
       description: row.description,
       knownManual: row.knownManual,
       phase: CardPhase.fromValue(row.phase),

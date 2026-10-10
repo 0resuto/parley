@@ -33,7 +33,7 @@ void main() {
 
   group('TapAgainPolicy 7.2', () {
     test('first open rates with Again and source tap', () async {
-      final Unit unit = await units.add(text: 'cow', translationRu: 'корова');
+      final Unit unit = await units.add(text: 'cow');
 
       final bool rated = await policy.maybeRate(unit);
 

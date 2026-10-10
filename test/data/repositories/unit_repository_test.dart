@@ -25,11 +25,10 @@ void main() {
 
   group('add', () {
     test('trims text, normalizes key and uses clock for dates', () async {
-      final Unit unit = await repo.add(text: '  Cow ', translationRu: 'корова');
+      final Unit unit = await repo.add(text: '  Cow ');
 
       expect(unit.text, 'Cow');
       expect(unit.textKey, 'cow');
-      expect(unit.translationRu, 'корова');
       expect(unit.forms, isEmpty);
       expect(unit.knownManual, isFalse);
       expect(unit.phase, CardPhase.isNew);
@@ -93,13 +92,10 @@ void main() {
 
     test('update persists fields and recomputes the key', () async {
       final Unit created = await repo.add(text: 'Cow');
-      final Unit updated = await repo.update(
-        created.copyWith(text: '  Milk ', translationRu: 'молоко'),
-      );
+      final Unit updated = await repo.update(created.copyWith(text: '  Milk '));
 
       expect(updated.text, 'Milk');
       expect(updated.textKey, 'milk');
-      expect(updated.translationRu, 'молоко');
       expect((await repo.findByKey('milk'))?.id, created.id);
       expect(await repo.findByKey('cow'), isNull);
     });
@@ -179,14 +175,14 @@ void main() {
       expect(onlyNew.map((u) => u.id), [fresh.id]);
     });
 
-    test('filters by query in text, translation and key', () async {
-      await repo.add(text: 'Cow', translationRu: 'корова');
-      final Unit milk = await repo.add(text: 'Milk', translationRu: 'молоко');
+    test('filters by query in text and key', () async {
+      await repo.add(text: 'Cow');
+      final Unit milk = await repo.add(text: 'Milk');
 
       List<Unit> units = await repo.watchAll(query: 'milk').first;
       expect(units.map((u) => u.id), [milk.id]);
 
-      units = await repo.watchAll(query: 'КОРОВА').first;
+      units = await repo.watchAll(query: 'COW').first;
       expect(units, hasLength(1));
       expect(units.first.text, 'Cow');
 

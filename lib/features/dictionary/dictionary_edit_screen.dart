@@ -14,7 +14,7 @@ const String duplicateWordError = 'This word is already in the dictionary.';
 
 /// Add / edit / detail screen for one dictionary unit (SPEC 5.1).
 ///
-/// Add mode ([unitId] null) edits text + translation only.
+/// Add mode ([unitId] null) edits the word only (meanings resolve live).
 /// Edit mode also shows dates, the description when present,
 /// the "I already know this" switch and delete with confirmation.
 class DictionaryEditScreen extends StatelessWidget {
@@ -41,7 +41,6 @@ class _AddScreen extends ConsumerStatefulWidget {
 
 class _AddScreenState extends ConsumerState<_AddScreen> {
   final TextEditingController _textController = TextEditingController();
-  final TextEditingController _translationController = TextEditingController();
   String? _textError;
   String? _formError;
   bool _saving = false;
@@ -49,13 +48,11 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
   @override
   void dispose() {
     _textController.dispose();
-    _translationController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final String text = _textController.text.trim();
-    final String translation = _translationController.text.trim();
     if (text.isEmpty) {
       setState(() {
         _textError = emptyWordError;
@@ -76,7 +73,7 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
         });
         return;
       }
-      await repo.add(text: text, translationRu: translation);
+      await repo.add(text: text);
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -101,7 +98,6 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
       appBar: AppBar(title: const Text('Add word')),
       body: _UnitFormBody(
         textController: _textController,
-        translationController: _translationController,
         textError: _textError,
         formError: _formError,
         saving: _saving,
@@ -122,7 +118,6 @@ class _EditScreen extends ConsumerStatefulWidget {
 
 class _EditScreenState extends ConsumerState<_EditScreen> {
   final TextEditingController _textController = TextEditingController();
-  final TextEditingController _translationController = TextEditingController();
   Unit? _unit;
   bool _loading = true;
   bool _notFound = false;
@@ -141,7 +136,6 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
   @override
   void dispose() {
     _textController.dispose();
-    _translationController.dispose();
     super.dispose();
   }
 
@@ -161,7 +155,6 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
         return;
       }
       _textController.text = unit.text;
-      _translationController.text = unit.translationRu;
       setState(() {
         _unit = unit;
         _loading = false;
@@ -183,7 +176,6 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
       return;
     }
     final String text = _textController.text.trim();
-    final String translation = _translationController.text.trim();
     if (text.isEmpty) {
       setState(() {
         _textError = emptyWordError;
@@ -204,7 +196,7 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
         });
         return;
       }
-      await repo.update(unit.copyWith(text: text, translationRu: translation));
+      await repo.update(unit.copyWith(text: text));
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -325,7 +317,6 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
         children: [
           _UnitFormBody(
             textController: _textController,
-            translationController: _translationController,
             textError: _textError,
             formError: _formError,
             saving: _saving,
@@ -362,11 +353,10 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
   }
 }
 
-/// Shared text fields + save button for add and edit.
+/// Word field + save button for add and edit.
 class _UnitFormBody extends StatelessWidget {
   const _UnitFormBody({
     required this.textController,
-    required this.translationController,
     required this.textError,
     required this.formError,
     required this.saving,
@@ -374,7 +364,6 @@ class _UnitFormBody extends StatelessWidget {
   });
 
   final TextEditingController textController;
-  final TextEditingController translationController;
   final String? textError;
   final String? formError;
   final bool saving;
@@ -393,15 +382,6 @@ class _UnitFormBody extends StatelessWidget {
             labelText: 'Word',
             errorText: textError,
             border: const OutlineInputBorder(),
-          ),
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: translationController,
-          decoration: const InputDecoration(
-            labelText: 'Translation',
-            border: OutlineInputBorder(),
           ),
           textInputAction: TextInputAction.done,
         ),

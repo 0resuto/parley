@@ -54,18 +54,6 @@ class $UnitsTable extends Units with TableInfo<$UnitsTable, Unit> {
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
-  static const VerificationMeta _translationRuMeta = const VerificationMeta(
-    'translationRu',
-  );
-  @override
-  late final GeneratedColumn<String> translationRu = GeneratedColumn<String>(
-    'translation_ru',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(''),
-  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -160,7 +148,6 @@ class $UnitsTable extends Units with TableInfo<$UnitsTable, Unit> {
     unitText,
     textKey,
     forms,
-    translationRu,
     description,
     knownManual,
     phase,
@@ -205,15 +192,6 @@ class $UnitsTable extends Units with TableInfo<$UnitsTable, Unit> {
       context.handle(
         _formsMeta,
         forms.isAcceptableOrUnknown(data['forms']!, _formsMeta),
-      );
-    }
-    if (data.containsKey('translation_ru')) {
-      context.handle(
-        _translationRuMeta,
-        translationRu.isAcceptableOrUnknown(
-          data['translation_ru']!,
-          _translationRuMeta,
-        ),
       );
     }
     if (data.containsKey('description')) {
@@ -303,10 +281,6 @@ class $UnitsTable extends Units with TableInfo<$UnitsTable, Unit> {
         DriftSqlType.string,
         data['${effectivePrefix}forms'],
       )!,
-      translationRu: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}translation_ru'],
-      )!,
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -353,7 +327,6 @@ class Unit extends DataClass implements Insertable<Unit> {
   final String unitText;
   final String textKey;
   final String forms;
-  final String translationRu;
   final String? description;
   final bool knownManual;
   final int phase;
@@ -367,7 +340,6 @@ class Unit extends DataClass implements Insertable<Unit> {
     required this.unitText,
     required this.textKey,
     required this.forms,
-    required this.translationRu,
     this.description,
     required this.knownManual,
     required this.phase,
@@ -384,7 +356,6 @@ class Unit extends DataClass implements Insertable<Unit> {
     map['text'] = Variable<String>(unitText);
     map['text_key'] = Variable<String>(textKey);
     map['forms'] = Variable<String>(forms);
-    map['translation_ru'] = Variable<String>(translationRu);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
@@ -408,7 +379,6 @@ class Unit extends DataClass implements Insertable<Unit> {
       unitText: Value(unitText),
       textKey: Value(textKey),
       forms: Value(forms),
-      translationRu: Value(translationRu),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
@@ -436,7 +406,6 @@ class Unit extends DataClass implements Insertable<Unit> {
       unitText: serializer.fromJson<String>(json['unitText']),
       textKey: serializer.fromJson<String>(json['textKey']),
       forms: serializer.fromJson<String>(json['forms']),
-      translationRu: serializer.fromJson<String>(json['translationRu']),
       description: serializer.fromJson<String?>(json['description']),
       knownManual: serializer.fromJson<bool>(json['knownManual']),
       phase: serializer.fromJson<int>(json['phase']),
@@ -455,7 +424,6 @@ class Unit extends DataClass implements Insertable<Unit> {
       'unitText': serializer.toJson<String>(unitText),
       'textKey': serializer.toJson<String>(textKey),
       'forms': serializer.toJson<String>(forms),
-      'translationRu': serializer.toJson<String>(translationRu),
       'description': serializer.toJson<String?>(description),
       'knownManual': serializer.toJson<bool>(knownManual),
       'phase': serializer.toJson<int>(phase),
@@ -472,7 +440,6 @@ class Unit extends DataClass implements Insertable<Unit> {
     String? unitText,
     String? textKey,
     String? forms,
-    String? translationRu,
     Value<String?> description = const Value.absent(),
     bool? knownManual,
     int? phase,
@@ -486,7 +453,6 @@ class Unit extends DataClass implements Insertable<Unit> {
     unitText: unitText ?? this.unitText,
     textKey: textKey ?? this.textKey,
     forms: forms ?? this.forms,
-    translationRu: translationRu ?? this.translationRu,
     description: description.present ? description.value : this.description,
     knownManual: knownManual ?? this.knownManual,
     phase: phase ?? this.phase,
@@ -502,9 +468,6 @@ class Unit extends DataClass implements Insertable<Unit> {
       unitText: data.unitText.present ? data.unitText.value : this.unitText,
       textKey: data.textKey.present ? data.textKey.value : this.textKey,
       forms: data.forms.present ? data.forms.value : this.forms,
-      translationRu: data.translationRu.present
-          ? data.translationRu.value
-          : this.translationRu,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -529,7 +492,6 @@ class Unit extends DataClass implements Insertable<Unit> {
           ..write('unitText: $unitText, ')
           ..write('textKey: $textKey, ')
           ..write('forms: $forms, ')
-          ..write('translationRu: $translationRu, ')
           ..write('description: $description, ')
           ..write('knownManual: $knownManual, ')
           ..write('phase: $phase, ')
@@ -548,7 +510,6 @@ class Unit extends DataClass implements Insertable<Unit> {
     unitText,
     textKey,
     forms,
-    translationRu,
     description,
     knownManual,
     phase,
@@ -566,7 +527,6 @@ class Unit extends DataClass implements Insertable<Unit> {
           other.unitText == this.unitText &&
           other.textKey == this.textKey &&
           other.forms == this.forms &&
-          other.translationRu == this.translationRu &&
           other.description == this.description &&
           other.knownManual == this.knownManual &&
           other.phase == this.phase &&
@@ -582,7 +542,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
   final Value<String> unitText;
   final Value<String> textKey;
   final Value<String> forms;
-  final Value<String> translationRu;
   final Value<String?> description;
   final Value<bool> knownManual;
   final Value<int> phase;
@@ -596,7 +555,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
     this.unitText = const Value.absent(),
     this.textKey = const Value.absent(),
     this.forms = const Value.absent(),
-    this.translationRu = const Value.absent(),
     this.description = const Value.absent(),
     this.knownManual = const Value.absent(),
     this.phase = const Value.absent(),
@@ -611,7 +569,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
     required String unitText,
     required String textKey,
     this.forms = const Value.absent(),
-    this.translationRu = const Value.absent(),
     this.description = const Value.absent(),
     this.knownManual = const Value.absent(),
     required int phase,
@@ -631,7 +588,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
     Expression<String>? unitText,
     Expression<String>? textKey,
     Expression<String>? forms,
-    Expression<String>? translationRu,
     Expression<String>? description,
     Expression<bool>? knownManual,
     Expression<int>? phase,
@@ -646,7 +602,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
       if (unitText != null) 'text': unitText,
       if (textKey != null) 'text_key': textKey,
       if (forms != null) 'forms': forms,
-      if (translationRu != null) 'translation_ru': translationRu,
       if (description != null) 'description': description,
       if (knownManual != null) 'known_manual': knownManual,
       if (phase != null) 'phase': phase,
@@ -663,7 +618,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
     Value<String>? unitText,
     Value<String>? textKey,
     Value<String>? forms,
-    Value<String>? translationRu,
     Value<String?>? description,
     Value<bool>? knownManual,
     Value<int>? phase,
@@ -678,7 +632,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
       unitText: unitText ?? this.unitText,
       textKey: textKey ?? this.textKey,
       forms: forms ?? this.forms,
-      translationRu: translationRu ?? this.translationRu,
       description: description ?? this.description,
       knownManual: knownManual ?? this.knownManual,
       phase: phase ?? this.phase,
@@ -704,9 +657,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
     }
     if (forms.present) {
       map['forms'] = Variable<String>(forms.value);
-    }
-    if (translationRu.present) {
-      map['translation_ru'] = Variable<String>(translationRu.value);
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
@@ -742,7 +692,6 @@ class UnitsCompanion extends UpdateCompanion<Unit> {
           ..write('unitText: $unitText, ')
           ..write('textKey: $textKey, ')
           ..write('forms: $forms, ')
-          ..write('translationRu: $translationRu, ')
           ..write('description: $description, ')
           ..write('knownManual: $knownManual, ')
           ..write('phase: $phase, ')
@@ -1863,7 +1812,6 @@ typedef $$UnitsTableCreateCompanionBuilder =
       required String unitText,
       required String textKey,
       Value<String> forms,
-      Value<String> translationRu,
       Value<String?> description,
       Value<bool> knownManual,
       required int phase,
@@ -1879,7 +1827,6 @@ typedef $$UnitsTableUpdateCompanionBuilder =
       Value<String> unitText,
       Value<String> textKey,
       Value<String> forms,
-      Value<String> translationRu,
       Value<String?> description,
       Value<bool> knownManual,
       Value<int> phase,
@@ -1939,11 +1886,6 @@ class $$UnitsTableFilterComposer extends Composer<_$AppDatabase, $UnitsTable> {
 
   ColumnFilters<String> get forms => $composableBuilder(
     column: $table.forms,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get translationRu => $composableBuilder(
-    column: $table.translationRu,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2042,11 +1984,6 @@ class $$UnitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get translationRu => $composableBuilder(
-    column: $table.translationRu,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -2108,11 +2045,6 @@ class $$UnitsTableAnnotationComposer
 
   GeneratedColumn<String> get forms =>
       $composableBuilder(column: $table.forms, builder: (column) => column);
-
-  GeneratedColumn<String> get translationRu => $composableBuilder(
-    column: $table.translationRu,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<String> get description => $composableBuilder(
     column: $table.description,
@@ -2202,7 +2134,6 @@ class $$UnitsTableTableManager
                 Value<String> unitText = const Value.absent(),
                 Value<String> textKey = const Value.absent(),
                 Value<String> forms = const Value.absent(),
-                Value<String> translationRu = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<bool> knownManual = const Value.absent(),
                 Value<int> phase = const Value.absent(),
@@ -2216,7 +2147,6 @@ class $$UnitsTableTableManager
                 unitText: unitText,
                 textKey: textKey,
                 forms: forms,
-                translationRu: translationRu,
                 description: description,
                 knownManual: knownManual,
                 phase: phase,
@@ -2232,7 +2162,6 @@ class $$UnitsTableTableManager
                 required String unitText,
                 required String textKey,
                 Value<String> forms = const Value.absent(),
-                Value<String> translationRu = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<bool> knownManual = const Value.absent(),
                 required int phase,
@@ -2246,7 +2175,6 @@ class $$UnitsTableTableManager
                 unitText: unitText,
                 textKey: textKey,
                 forms: forms,
-                translationRu: translationRu,
                 description: description,
                 knownManual: knownManual,
                 phase: phase,

@@ -14,7 +14,10 @@ import 'package:parley/services/srs/srs_service.dart';
 const String exportFormat = 'parley-export';
 
 /// Export envelope version (SPEC 4.5).
-const int exportVersion = 1;
+///
+/// v2 dropped `translation_ru` (meanings resolve live, PLAN 19.1); import
+/// still accepts v1 files and ignores their translations.
+const int exportVersion = 2;
 
 /// Thrown when an import file is not a valid Parley export.
 class ExportFormatException implements Exception {
@@ -70,7 +73,7 @@ class ImportSummary {
   }
 }
 
-/// JSON export and import, format v1 (SPEC 4.5).
+/// JSON export and import, format v2 (SPEC 4.5).
 ///
 /// Units merge by `text_key`. Reviews link to units by unit text and are
 /// always appended. Rules/notes are replaced only when [ImportOptions]
@@ -150,7 +153,6 @@ class ExportService {
       if (existing == null) {
         final Unit created = await _units.add(
           text: unit.text,
-          translationRu: unit.translationRu,
           description: unit.description,
           forms: unit.forms,
         );
@@ -170,7 +172,6 @@ class ExportService {
         byKey[unit.key] = await _units.update(
           existing.copyWith(
             text: unit.text,
-            translationRu: unit.translationRu,
             description: unit.description,
             forms: unit.forms,
             knownManual: unit.knownManual,
@@ -227,7 +228,6 @@ class ExportService {
     return {
       'text': unit.text,
       'forms': unit.forms,
-      'translation_ru': unit.translationRu,
       'description': unit.description,
       'known_manual': unit.knownManual,
       'phase': unit.phase.value,
@@ -248,8 +248,13 @@ class ExportService {
     if (decoded is! Map<String, dynamic>) {
       throw const ExportFormatException('The file is not a Parley export.');
     }
-    if (decoded['format'] != exportFormat ||
-        decoded['version'] != exportVersion) {
+    if (decoded['format'] != exportFormat) {
+      throw const ExportFormatException(
+        'Unsupported export format or version.',
+      );
+    }
+    final Object? version = decoded['version'];
+    if (version != 1 && version != exportVersion) {
       throw const ExportFormatException(
         'Unsupported export format or version.',
       );
@@ -307,7 +312,6 @@ class ExportService {
       text: text,
       key: normalizeKey(text),
       forms: forms,
-      translationRu: _optionalString(entry, 'translation_ru', text),
       description: _optionalDescription(entry, text),
       knownManual: _optionalBool(entry, 'known_manual', text),
       phase: phase,
@@ -431,7 +435,6 @@ class _UnitEntry {
     required this.text,
     required this.key,
     required this.forms,
-    required this.translationRu,
     required this.description,
     required this.knownManual,
     required this.phase,
@@ -445,7 +448,6 @@ class _UnitEntry {
   final String text;
   final String key;
   final List<String> forms;
-  final String translationRu;
   final String? description;
   final bool knownManual;
   final CardPhase phase;

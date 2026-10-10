@@ -13,7 +13,6 @@ Unit _unit({
     text: 'Cow',
     textKey: 'cow',
     forms: const [],
-    translationRu: '',
     description: null,
     knownManual: known,
     phase: phase,
