@@ -1,0 +1,44 @@
+# Pre-commit checks for Parley (https://pre-commit.com).
+#
+# One-time setup per clone:
+#   python -m pip install --user pre-commit
+#   pre-commit install
+#   pre-commit install --hook-type pre-push
+#
+# On commit: formatting + analysis. On push: the full test suite.
+# The hooks call `dart` and `flutter` from PATH.
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        exclude: ^assets/dictionary/
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: \.(bat|cmd)$
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: dart-format
+        name: dart format
+        entry: dart format --output=none --set-exit-if-changed .
+        language: system
+        pass_filenames: false
+      - id: flutter-analyze
+        name: flutter analyze
+        entry: flutter analyze
+        language: system
+        pass_filenames: false
+      - id: flutter-test
+        name: flutter test
+        entry: flutter test
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

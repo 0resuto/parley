@@ -142,6 +142,16 @@ flutter analyze
 flutter test
 ```
 
+Pre-commit checks run on every commit (formatting + analysis) and the test
+suite runs before every push. Install the hooks once per clone (requires
+`dart` and `flutter` on `PATH`):
+
+```bash
+python -m pip install --user pre-commit
+pre-commit install
+pre-commit install --hook-type pre-push
+```
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/)
 and releases use [Semantic Versioning](https://semver.org/); release notes
 live in GitHub Releases.
