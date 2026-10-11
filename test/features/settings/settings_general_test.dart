@@ -21,6 +21,7 @@ class FakeSettingsRepository implements SettingsRepository {
     this.autoPlayValue = false,
     this.speed = 1.0,
     this.contextTranslationValue = true,
+    this.meaningLanguageValue = 'ru',
   });
 
   String baseUrlValue;
@@ -29,6 +30,7 @@ class FakeSettingsRepository implements SettingsRepository {
   bool autoPlayValue;
   double speed;
   bool contextTranslationValue;
+  String meaningLanguageValue;
 
   @override
   String get baseUrl => baseUrlValue;
@@ -47,6 +49,9 @@ class FakeSettingsRepository implements SettingsRepository {
 
   @override
   bool get contextTranslation => contextTranslationValue;
+
+  @override
+  String get meaningLanguage => meaningLanguageValue;
 
   @override
   Future<void> setBaseUrl(String value) async {
@@ -76,6 +81,11 @@ class FakeSettingsRepository implements SettingsRepository {
   @override
   Future<void> setContextTranslation(bool value) async {
     contextTranslationValue = value;
+  }
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {
+    meaningLanguageValue = value;
   }
 
   @override
@@ -176,7 +186,12 @@ void main() {
         find.text('Only OpenAI-format models are supported.'),
         findsOneWidget,
       );
+      expect(find.text('Meaning language'), findsOneWidget);
       // Lower sections are off-screen in a 800x600 viewport; scroll to them.
+      await tester.ensureVisible(find.text('Dictionaries'));
+      await tester.pumpAndSettle();
+      expect(find.text('Dictionaries'), findsOneWidget);
+      expect(find.text('Import dictionary'), findsOneWidget);
       await tester.ensureVisible(find.text('Data'));
       await tester.pumpAndSettle();
       expect(find.text('Voice'), findsOneWidget);
@@ -264,6 +279,28 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(settings.contextTranslationValue, isFalse);
+    });
+
+    testWidgets('meaning language dialog saves the code', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      await tester.ensureVisible(find.byKey(const Key('meaningLanguageTile')));
+      await tester.pumpAndSettle();
+      expect(find.text('ru'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('meaningLanguageTile')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('meaningLanguageField')),
+        'de',
+      );
+      await tester.tap(find.byKey(const Key('meaningLanguageSave')));
+      await tester.pumpAndSettle();
+
+      expect(settings.meaningLanguageValue, 'de');
+      expect(find.text('de'), findsOneWidget);
     });
 
     testWidgets('test connection success shows a message', (

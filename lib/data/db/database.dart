@@ -6,12 +6,21 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Units, Reviews, Conversations, Messages])
+@DriftDatabase(
+  tables: [
+    Units,
+    Reviews,
+    Conversations,
+    Messages,
+    Dictionaries,
+    DictionaryEntries,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -24,6 +33,11 @@ class AppDatabase extends _$AppDatabase {
         // longer store a translation. drift keeps foreign keys off while
         // the table is recreated, so review history is preserved.
         await m.alterTable(TableMigration(units));
+      }
+      if (from < 3) {
+        // 19.2: user dictionaries live in the app database.
+        await m.createTable(dictionaries);
+        await m.createTable(dictionaryEntries);
       }
     },
     beforeOpen: (details) async {

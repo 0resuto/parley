@@ -40,6 +40,7 @@ void main() {
     expect(repo.autoPlay, isFalse);
     expect(repo.speechSpeed, 1.0);
     expect(repo.contextTranslation, isTrue);
+    expect(repo.meaningLanguage, 'ru');
     expect(await repo.isLlmConfigured(), isFalse);
   });
 
@@ -70,6 +71,19 @@ void main() {
     await repo.setContextTranslation(true);
     expect(repo.contextTranslation, isTrue);
     expect(prefs.getBool('context_translation'), isTrue);
+  });
+
+  test('meaningLanguage round-trips and is normalized', () async {
+    await repo.setMeaningLanguage('DE');
+    expect(repo.meaningLanguage, 'de');
+    expect(prefs.getString('meaning_language'), 'de');
+
+    await repo.setMeaningLanguage('  es  ');
+    expect(repo.meaningLanguage, 'es');
+
+    // An empty value falls back to the default.
+    await repo.setMeaningLanguage('   ');
+    expect(repo.meaningLanguage, 'ru');
   });
 
   test('baseUrl and model are trimmed', () async {

@@ -20,6 +20,12 @@ import '../../helpers/fake_connectivity_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 class FakeChipSettings implements SettingsRepository {
+  @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
   FakeChipSettings({this.configured = true});
 
   bool configured;

@@ -7,6 +7,7 @@ import 'package:parley/services/export/export_service.dart';
 import 'package:parley/services/export/file_picker_service.dart';
 import 'about_section.dart';
 import 'ai_provider_section.dart';
+import 'dictionaries_section.dart';
 import 'settings_providers.dart';
 import 'translation_section.dart';
 import 'tutor_section.dart';
@@ -252,6 +253,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const AiProviderSection(),
             const TutorSection(),
             const TranslationSection(),
+            const DictionariesSection(),
             const VoiceSection(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),

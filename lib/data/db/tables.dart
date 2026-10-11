@@ -24,6 +24,35 @@ class Reviews extends Table {
   DateTimeColumn get reviewedAt => dateTime()();
 }
 
+/// One imported user dictionary (SPEC 5.12).
+///
+/// `position` is the priority: lower values are consulted first by
+/// [UserDictionaryRepository.lookup].
+@DataClassName('UserDictionaryRow')
+class Dictionaries extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+  IntColumn get position => integer()();
+  IntColumn get entryCount => integer()();
+  DateTimeColumn get importedAt => dateTime()();
+}
+
+/// One `text_key -> translation` row of an imported user dictionary.
+@DataClassName('DictionaryEntryRow')
+class DictionaryEntries extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get dictionaryId =>
+      integer().references(Dictionaries, #id, onDelete: KeyAction.cascade)();
+  TextColumn get textKey => text()();
+  TextColumn get translation => text()();
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {dictionaryId, textKey},
+  ];
+}
+
 class Conversations extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();

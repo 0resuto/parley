@@ -16,6 +16,12 @@ import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_connectivity_service.dart';
 
 class FakeJudgeSettings implements SettingsRepository {
+  @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
   FakeJudgeSettings({this.configured = true});
 
   bool configured;

@@ -43,6 +43,11 @@ class FakeFilePickerService implements FilePickerService {
   Future<PickedCsvFile?> pickCsvFile() async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<PickedDictionaryFile?> pickDictionaryFile() {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

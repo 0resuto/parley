@@ -15,6 +15,12 @@ import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_connectivity_service.dart';
 
 class FakeNotesSettings implements SettingsRepository {
+  @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
   FakeNotesSettings({this.configured = true});
 
   bool configured;

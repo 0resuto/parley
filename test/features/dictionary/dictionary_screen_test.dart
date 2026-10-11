@@ -5,6 +5,7 @@ import 'package:parley/data/models/unit.dart';
 import 'package:parley/features/dictionary/dictionary_edit_screen.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/dictionary/dictionary_screen.dart';
+import 'package:parley/services/dictionary/user_dictionary_lookup.dart';
 
 import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_dictionary_service.dart';
@@ -28,6 +29,9 @@ void main() {
           clockProvider.overrideWithValue(clock),
           dictionaryServiceProvider.overrideWithValue(
             FakeDictionaryService({'cow': 'корова', 'milk': 'молоко'}),
+          ),
+          userDictionaryLookupProvider.overrideWithValue(
+            const EmptyUserDictionaryLookup(),
           ),
         ],
         child: const MaterialApp(home: DictionaryScreen()),

@@ -40,6 +40,11 @@ class FakeFilePickerService implements FilePickerService {
     }
     return nextCsv;
   }
+
+  @override
+  Future<PickedDictionaryFile?> pickDictionaryFile() {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

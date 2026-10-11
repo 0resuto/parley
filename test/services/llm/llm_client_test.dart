@@ -11,6 +11,12 @@ import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
 
 class FakeSettings implements SettingsRepository {
+  @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
   FakeSettings({
     this.baseUrlValue = 'https://example.com/v1',
     this.modelValue = 'test-model',

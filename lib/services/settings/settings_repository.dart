@@ -20,6 +20,9 @@ abstract class SettingsRepository {
   /// (extra tokens); false keeps the dictionary meaning only (SPEC 5.10).
   bool get contextTranslation;
 
+  /// Language code the AI translates meanings into (SPEC 5.10, default `ru`).
+  String get meaningLanguage;
+
   Future<void> setBaseUrl(String value);
 
   Future<void> setModel(String value);
@@ -31,6 +34,8 @@ abstract class SettingsRepository {
   Future<void> setSpeechSpeed(double value);
 
   Future<void> setContextTranslation(bool value);
+
+  Future<void> setMeaningLanguage(String value);
 
   /// True when url, model and api key are all non-empty.
   Future<bool> isLlmConfigured();
@@ -49,6 +54,7 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
   static const defaultAutoPlay = false;
   static const defaultSpeechSpeed = 1.0;
   static const defaultContextTranslation = true;
+  static const defaultMeaningLanguage = 'ru';
 
   static const _kBaseUrl = 'base_url';
   static const _kModel = 'model';
@@ -56,6 +62,7 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
   static const _kAutoPlay = 'auto_play';
   static const _kSpeechSpeed = 'speech_speed';
   static const _kContextTranslation = 'context_translation';
+  static const _kMeaningLanguage = 'meaning_language';
 
   static int normalizePercent(int value) {
     final int clamped = value.clamp(0, 30);
@@ -67,6 +74,13 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
       return defaultSpeechSpeed;
     }
     return value.clamp(0.5, 1.5).toDouble();
+  }
+
+  /// Trims and lowercases the language code; an empty value resets to
+  /// the default.
+  static String normalizeMeaningLanguage(String value) {
+    final String trimmed = value.trim().toLowerCase();
+    return trimmed.isEmpty ? defaultMeaningLanguage : trimmed;
   }
 
   @override
@@ -92,6 +106,10 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
       _prefs.getBool(_kContextTranslation) ?? defaultContextTranslation;
 
   @override
+  String get meaningLanguage =>
+      _prefs.getString(_kMeaningLanguage) ?? defaultMeaningLanguage;
+
+  @override
   Future<void> setBaseUrl(String value) =>
       _prefs.setString(_kBaseUrl, value.trim());
 
@@ -113,6 +131,10 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
   @override
   Future<void> setContextTranslation(bool value) =>
       _prefs.setBool(_kContextTranslation, value);
+
+  @override
+  Future<void> setMeaningLanguage(String value) =>
+      _prefs.setString(_kMeaningLanguage, normalizeMeaningLanguage(value));
 
   @override
   Future<bool> isLlmConfigured() async {
@@ -139,12 +161,15 @@ class MemorySettingsRepository implements SettingsRepository {
     double speechSpeed = SharedPreferencesSettingsRepository.defaultSpeechSpeed,
     bool contextTranslation =
         SharedPreferencesSettingsRepository.defaultContextTranslation,
+    String meaningLanguage =
+        SharedPreferencesSettingsRepository.defaultMeaningLanguage,
   }) : _baseUrl = baseUrl,
        _model = model,
        _newWordPercent = newWordPercent,
        _autoPlay = autoPlay,
        _speechSpeed = speechSpeed,
-       _contextTranslation = contextTranslation;
+       _contextTranslation = contextTranslation,
+       _meaningLanguage = meaningLanguage;
 
   final SecureKeyStore _keyStore;
   String _baseUrl;
@@ -153,6 +178,7 @@ class MemorySettingsRepository implements SettingsRepository {
   bool _autoPlay;
   double _speechSpeed;
   bool _contextTranslation;
+  String _meaningLanguage;
 
   @override
   String get baseUrl => _baseUrl;
@@ -173,6 +199,12 @@ class MemorySettingsRepository implements SettingsRepository {
 
   @override
   bool get contextTranslation => _contextTranslation;
+
+  @override
+  String get meaningLanguage =>
+      SharedPreferencesSettingsRepository.normalizeMeaningLanguage(
+        _meaningLanguage,
+      );
 
   @override
   Future<void> setBaseUrl(String value) async {
@@ -204,6 +236,12 @@ class MemorySettingsRepository implements SettingsRepository {
   @override
   Future<void> setContextTranslation(bool value) async {
     _contextTranslation = value;
+  }
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {
+    _meaningLanguage =
+        SharedPreferencesSettingsRepository.normalizeMeaningLanguage(value);
   }
 
   @override

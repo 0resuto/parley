@@ -112,17 +112,17 @@ enum TranslatePos {
 class TranslateResult {
   const TranslateResult({
     required this.lemma,
-    required this.translationRu,
+    required this.translation,
     required this.translationInContext,
     required this.pos,
   });
 
   final String lemma;
 
-  /// Main dictionary meaning (saved to the unit).
-  final String translationRu;
+  /// Main dictionary meaning in the configured meaning language.
+  final String translation;
 
-  /// Meaning in the given sentence; equals [translationRu] when the
+  /// Meaning in the given sentence; equals [translation] when the
   /// model did not send a different one (SPEC 6.3).
   final String translationInContext;
 
@@ -132,7 +132,7 @@ class TranslateResult {
 /// Validates a decoded translate JSON object.
 TranslateResult validateTranslateJson(Map<String, dynamic> json) {
   final Object? lemma = json['lemma'];
-  final Object? translation = json['translation_ru'];
+  final Object? translation = json['translation'];
   final Object? context = json['translation_in_context'];
   final Object? pos = json['pos'];
   if (lemma is! String || lemma.trim().isEmpty) {
@@ -155,7 +155,7 @@ TranslateResult validateTranslateJson(Map<String, dynamic> json) {
   final String inContext = context is String ? context.trim() : '';
   return TranslateResult(
     lemma: lemma.trim(),
-    translationRu: dictionary,
+    translation: dictionary,
     translationInContext: inContext.isEmpty ? dictionary : inContext,
     pos: parsed,
   );

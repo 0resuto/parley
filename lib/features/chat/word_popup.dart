@@ -60,7 +60,7 @@ class WordPopup extends ConsumerStatefulWidget {
 class _WordPopupState extends ConsumerState<WordPopup> {
   Unit? _unit;
   TranslateResult? _fetched;
-  DictionaryEntry? _bundle;
+  DictionaryEntry? _local;
   bool _loading = false;
   bool _offline = false;
   AppFailure? _error;
@@ -103,13 +103,13 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       _offline = false;
       _error = null;
     });
-    final DictionaryEntry? bundle = await _lookupBundle();
+    final DictionaryEntry? local = await _lookupDictionary();
     if (!mounted) {
       return;
     }
     setState(() {
-      _bundle = bundle;
-      if (bundle != null) {
+      _local = local;
+      if (local != null) {
         // The dictionary meaning is ready: show it at once, the
         // contextual line may follow from the LLM.
         _loading = false;
@@ -124,8 +124,8 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       });
       return;
     }
-    if (!_contextEnabled && bundle != null) {
-      // Nothing left to fetch: the bundle already covers the meaning.
+    if (!_contextEnabled && local != null) {
+      // Nothing left to fetch: the local dictionary covers the meaning.
       return;
     }
     bool online = false;
@@ -140,7 +140,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     if (!online) {
       setState(() {
         _loading = false;
-        _offline = bundle == null;
+        _offline = local == null;
       });
       return;
     }
@@ -148,7 +148,11 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       final LlmClient llm = ref.read(llmClientProvider);
       final TranslateResult result = await completeJson(
         llm,
-        buildTranslateMessages(widget.surface, widget.sentence),
+        buildTranslateMessages(
+          widget.surface,
+          widget.sentence,
+          meaningLanguage: ref.read(settingsRepositoryProvider).meaningLanguage,
+        ),
         validateTranslateJson,
       );
       cache.set(widget.wordKey, result);
@@ -165,17 +169,20 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       }
       setState(() {
         _loading = false;
-        if (bundle == null) {
+        if (local == null) {
           _error = e is AppFailure ? e : const ServerFailure();
         }
       });
     }
   }
 
-  /// Looks up the bundled dictionary; a broken bundle just means a miss.
-  Future<DictionaryEntry?> _lookupBundle() async {
+  /// Looks up the local dictionary sources (user dictionaries, then the
+  /// bundle, SPEC 5.12); a broken source just means a miss.
+  Future<DictionaryEntry?> _lookupDictionary() async {
     try {
-      return await ref.read(dictionaryServiceProvider).lookup(widget.wordKey);
+      return await ref
+          .read(meaningResolverProvider)
+          .dictionaryEntry(widget.wordKey);
     } catch (_) {
       return null;
     }
@@ -218,16 +225,16 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     }
   }
 
-  /// Fields for a new unit: the bundled dictionary spelling wins over the
+  /// Fields for a new unit: the local dictionary spelling wins over the
   /// tapped surface (lookups are case-insensitive, so "Nice" must not enter
-  /// the user's dictionary when the bundle spells the word "nice"); the
+  /// the user's dictionary when the dictionary spells the word "nice"); the
   /// lemma, or the token itself, is the AI fallback (SPEC 5.5).
   /// Meanings are not stored; they resolve live (PLAN 19.1).
   ({String text, List<String> forms}) _newUnitFields() {
     final String lemma = _fetched?.lemma.trim() ?? '';
-    final String bundleKey = _bundle?.textKey.trim() ?? '';
-    final String text = bundleKey.isNotEmpty
-        ? bundleKey
+    final String dictionaryKey = _local?.textKey.trim() ?? '';
+    final String text = dictionaryKey.isNotEmpty
+        ? dictionaryKey
         : (lemma.isEmpty ? widget.surface.trim() : lemma);
     final String lemmaKey = normalizeKey(lemma);
     final Set<String> seen = {};
@@ -327,8 +334,8 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     bool aiGenerated = false;
     if (_loading) {
       translation = '';
-    } else if (_bundle != null) {
-      translation = _bundle!.translation;
+    } else if (_local != null) {
+      translation = _local!.translation;
       if (_fetched != null) {
         final String inContext = _fetched!.translationInContext;
         if (_contextEnabled && inContext != translation) {
@@ -336,7 +343,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
         }
       }
     } else if (_fetched != null) {
-      translation = _fetched!.translationRu;
+      translation = _fetched!.translation;
       aiGenerated = true;
       final String inContext = _fetched!.translationInContext;
       if (_contextEnabled && inContext != translation) {

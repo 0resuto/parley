@@ -19,6 +19,12 @@ import '../../helpers/fake_unit_repository.dart';
 
 class FakeHistorySettings implements SettingsRepository {
   @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
+  @override
   String get baseUrl => 'https://example.com/v1';
 
   @override

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:parley/services/dictionary/dictionary_service.dart';
 import 'dictionary_providers.dart';
 
-/// Shows a word's meaning resolved live from the bundled dictionary
-/// (PLAN 19.1). Renders nothing while loading or when the word is missing.
+/// Shows a word's meaning resolved live from the local dictionary sources
+/// (user dictionaries, then the bundle; PLAN 19.1, SPEC 5.12). Renders
+/// nothing while loading or when the word is missing.
 class WordMeaning extends ConsumerStatefulWidget {
   const WordMeaning({super.key, required this.textKey, this.style});
 
@@ -36,10 +36,9 @@ class _WordMeaningState extends ConsumerState<WordMeaning> {
   Future<void> _load() async {
     String? meaning;
     try {
-      final DictionaryEntry? entry = await ref
-          .read(dictionaryServiceProvider)
-          .lookup(widget.textKey);
-      meaning = entry?.translation;
+      meaning = await ref
+          .read(meaningResolverProvider)
+          .dictionaryMeaning(widget.textKey);
     } catch (_) {
       meaning = null;
     }

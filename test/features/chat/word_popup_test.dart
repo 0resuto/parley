@@ -12,6 +12,8 @@ import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
+import 'package:parley/services/dictionary/dictionary_service.dart';
+import 'package:parley/services/dictionary/user_dictionary_lookup.dart';
 import 'package:parley/services/translation/translation.dart';
 import 'package:parley/services/tts/tts_service.dart';
 
@@ -60,12 +62,31 @@ class FakeTranslateLlm implements LlmClient {
   }
 }
 
+/// In-memory user-dictionary lookup fake (SPEC 5.12).
+class FakeUserDictionaryLookup implements UserDictionaryLookup {
+  FakeUserDictionaryLookup([Map<String, String> entries = const {}])
+    : _entries = Map<String, String>.of(entries);
+
+  final Map<String, String> _entries;
+
+  @override
+  Future<DictionaryEntry?> lookup(String wordKey) async {
+    final String key = wordKey.trim().toLowerCase();
+    final String? translation = _entries[key];
+    if (key.isEmpty || translation == null) {
+      return null;
+    }
+    return DictionaryEntry(textKey: key, translation: translation);
+  }
+}
+
 void main() {
   late FakeClock clock;
   late FakeUnitRepository units;
   late FakeConnectivityService connectivity;
   late FakeTranslateLlm llm;
   late FakeDictionaryService dictionary;
+  late FakeUserDictionaryLookup userDicts;
   late FakeTtsService tts;
   late TranslationCache cache;
 
@@ -74,6 +95,7 @@ void main() {
     units = FakeUnitRepository(clock: clock);
     connectivity = FakeConnectivityService();
     dictionary = FakeDictionaryService();
+    userDicts = FakeUserDictionaryLookup();
     tts = FakeTtsService();
     cache = TranslationCache();
     llm = FakeTranslateLlm(['unused']);
@@ -99,6 +121,7 @@ void main() {
           clockProvider.overrideWithValue(clock),
           connectivityServiceProvider.overrideWithValue(connectivity),
           dictionaryServiceProvider.overrideWithValue(dictionary),
+          userDictionaryLookupProvider.overrideWithValue(userDicts),
           llmClientProvider.overrideWithValue(llm),
           ttsServiceProvider.overrideWithValue(tts),
           translationCacheProvider.overrideWithValue(cache),
@@ -125,9 +148,7 @@ void main() {
     testWidgets('dictionary word shows the bundle meaning offline', (
       WidgetTester tester,
     ) async {
-      llm = FakeTranslateLlm([
-        '{"lemma":"x","translation_ru":"y","pos":"noun"}',
-      ]);
+      llm = FakeTranslateLlm(['{"lemma":"x","translation":"y","pos":"noun"}']);
       connectivity.setOnline(false);
       dictionary = FakeDictionaryService({'cow': 'корова'});
       final Unit created = await units.add(text: 'cow');
@@ -149,9 +170,51 @@ void main() {
       expect(llm.calls, isEmpty);
     });
 
+    testWidgets('a user dictionary meaning wins over the bundle', (
+      WidgetTester tester,
+    ) async {
+      connectivity.setOnline(false);
+      dictionary = FakeDictionaryService({'cow': 'корова'});
+      userDicts = FakeUserDictionaryLookup({'cow': 'бык'});
+
+      await pumpPopup(
+        tester,
+        surface: 'cow',
+        wordKey: 'cow',
+        sentence: 'I see a cow.',
+      );
+
+      expect(find.text('бык'), findsOneWidget);
+      expect(find.text('корова'), findsNothing);
+      expect(dictionary.lookups, 0);
+      expect(llm.calls, isEmpty);
+    });
+
+    testWidgets('the translate request uses the meaning language', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeTranslateLlm([
+        '{"lemma":"heifer","translation":"Färse","pos":"noun"}',
+      ]);
+
+      await pumpPopup(
+        tester,
+        surface: 'heifer',
+        wordKey: 'heifer',
+        sentence: 'I saw a heifer.',
+        settings: MemorySettingsRepository(
+          MemorySecureKeyStore(),
+          meaningLanguage: 'de',
+        ),
+      );
+
+      expect(find.text('Färse'), findsOneWidget);
+      expect(llm.calls.single.first.content, contains('English-German'));
+    });
+
     testWidgets('unknown word fetches and caches', (WidgetTester tester) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"heifer","translation_ru":"телка","pos":"noun"}',
+        '{"lemma":"heifer","translation":"телка","pos":"noun"}',
       ]);
 
       await pumpPopup(
@@ -167,10 +230,10 @@ void main() {
       final List<LlmMessage> first = llm.calls.single;
       expect(first, hasLength(2));
       expect(first[0].role, LlmRole.system);
-      expect(first[0].content, translateSystemPrompt);
+      expect(first[0].content, translateSystemPrompt('ru'));
       expect(first[1].content, contains('Word: heifer'));
       expect(first[1].content, contains('I saw a heifer.'));
-      expect(cache.get('heifer')?.translationRu, 'телка');
+      expect(cache.get('heifer')?.translation, 'телка');
       // No contextual field in the reply: it falls back to the dictionary one.
       expect(cache.get('heifer')?.translationInContext, 'телка');
 
@@ -189,7 +252,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+        '{"lemma":"bank","translation":"банк","translation_in_context":"берег","pos":"noun"}',
       ]);
 
       await pumpPopup(
@@ -215,7 +278,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"cow","translation_ru":"корова","translation_in_context":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","translation_in_context":"корова","pos":"noun"}',
       ]);
 
       await pumpPopup(
@@ -236,7 +299,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+        '{"lemma":"bank","translation":"банк","translation_in_context":"берег","pos":"noun"}',
       ]);
 
       await pumpPopup(
@@ -258,9 +321,7 @@ void main() {
     testWidgets('bundle word shows offline without the LLM', (
       WidgetTester tester,
     ) async {
-      llm = FakeTranslateLlm([
-        '{"lemma":"x","translation_ru":"y","pos":"noun"}',
-      ]);
+      llm = FakeTranslateLlm(['{"lemma":"x","translation":"y","pos":"noun"}']);
       connectivity.setOnline(false);
       dictionary = FakeDictionaryService({'heifer': 'тёлка'});
 
@@ -282,7 +343,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+        '{"lemma":"bank","translation":"банк","translation_in_context":"берег","pos":"noun"}',
       ]);
       dictionary = FakeDictionaryService({'bank': 'банк, склад'});
 
@@ -304,7 +365,7 @@ void main() {
     ) async {
       final Completer<void> gate = Completer<void>();
       llm = FakeTranslateLlm([
-        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+        '{"lemma":"bank","translation":"банк","translation_in_context":"берег","pos":"noun"}',
       ], gate: gate);
       dictionary = FakeDictionaryService({'bank': 'банк, склад'});
 
@@ -333,7 +394,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"bank","translation_ru":"банк","translation_in_context":"берег","pos":"noun"}',
+        '{"lemma":"bank","translation":"банк","translation_in_context":"берег","pos":"noun"}',
       ]);
       dictionary = FakeDictionaryService({'bank': 'банк, склад'});
 
@@ -360,7 +421,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"heifer","translation_ru":"тёлка","translation_in_context":"тёлочка","pos":"noun"}',
+        '{"lemma":"heifer","translation":"тёлка","translation_in_context":"тёлочка","pos":"noun"}',
       ]);
       dictionary = FakeDictionaryService();
 
@@ -387,7 +448,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"heifer","translation_ru":"тёлка","pos":"noun"}',
+        '{"lemma":"heifer","translation":"тёлка","pos":"noun"}',
       ]);
       dictionary = FakeDictionaryService();
 
@@ -438,7 +499,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"Nice","translation_ru":"милый","translation_in_context":"милая","pos":"adj"}',
+        '{"lemma":"Nice","translation":"милый","translation_in_context":"милая","pos":"adj"}',
       ]);
       dictionary = FakeDictionaryService({
         'nice': 'милый, приятный, симпатичный',
@@ -464,9 +525,7 @@ void main() {
     testWidgets('offline shows message and Add still works', (
       WidgetTester tester,
     ) async {
-      llm = FakeTranslateLlm([
-        '{"lemma":"x","translation_ru":"y","pos":"noun"}',
-      ]);
+      llm = FakeTranslateLlm(['{"lemma":"x","translation":"y","pos":"noun"}']);
       connectivity.setOnline(false);
 
       await pumpPopup(
@@ -492,7 +551,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeTranslateLlm([
-        '{"lemma":"cow","translation_ru":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
       ]);
 
       await pumpPopup(
@@ -594,9 +653,7 @@ void main() {
     testWidgets('Speak calls TtsService with the tapped word', (
       WidgetTester tester,
     ) async {
-      llm = FakeTranslateLlm([
-        '{"lemma":"x","translation_ru":"y","pos":"noun"}',
-      ]);
+      llm = FakeTranslateLlm(['{"lemma":"x","translation":"y","pos":"noun"}']);
       connectivity.setOnline(false);
       final Unit created = await units.add(text: 'cow');
 

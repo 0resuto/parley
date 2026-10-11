@@ -18,6 +18,12 @@ import '../../helpers/fake_connectivity_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 class FakeSpeechSettings implements SettingsRepository {
+  @override
+  String get meaningLanguage => 'ru';
+
+  @override
+  Future<void> setMeaningLanguage(String value) async {}
+
   FakeSpeechSettings({this.configured = true, this.autoPlayValue = false});
 
   bool configured;

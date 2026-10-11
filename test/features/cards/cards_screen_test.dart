@@ -10,6 +10,7 @@ import 'package:parley/features/cards/cards_controller.dart';
 import 'package:parley/features/cards/cards_screen.dart';
 import 'package:parley/features/chat/chat_controller.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
+import 'package:parley/services/dictionary/user_dictionary_lookup.dart';
 import 'package:parley/services/srs/review_service.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
@@ -131,6 +132,9 @@ void main() {
           dictionaryServiceProvider.overrideWithValue(
             dictionary ??
                 FakeDictionaryService({'cow': 'корова', 'milk': 'молоко'}),
+          ),
+          userDictionaryLookupProvider.overrideWithValue(
+            const EmptyUserDictionaryLookup(),
           ),
           reviewServiceProvider.overrideWithValue(reviews),
         ],

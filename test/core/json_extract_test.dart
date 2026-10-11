@@ -47,7 +47,7 @@ void main() {
   group('extractJson', () {
     test('plain object', () {
       final Map<String, dynamic> result = extractJson(
-        '{"lemma":"cow","translation_ru":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
       );
       expect(result['lemma'], 'cow');
     });
@@ -55,7 +55,7 @@ void main() {
     test('fenced JSON with language tag', () {
       const String raw =
           '```json\n'
-          '{"lemma":"cow","translation_ru":"корова","pos":"noun"}\n'
+          '{"lemma":"cow","translation":"корова","pos":"noun"}\n'
           '```';
       final Map<String, dynamic> result = extractJson(raw);
       expect(result['lemma'], 'cow');
@@ -69,7 +69,7 @@ void main() {
 
     test('JSON surrounded by prose', () {
       const String raw =
-          'Sure, here it is: {"lemma":"run","translation_ru":"бежать","pos":"verb"} hope that helps.';
+          'Sure, here it is: {"lemma":"run","translation":"бежать","pos":"verb"} hope that helps.';
       final Map<String, dynamic> result = extractJson(raw);
       expect(result['lemma'], 'run');
       expect(result['pos'], 'verb');
@@ -126,36 +126,36 @@ void main() {
     test('valid result', () {
       final TranslateResult result = validateTranslateJson({
         'lemma': 'cow',
-        'translation_ru': 'корова',
+        'translation': 'корова',
         'pos': 'noun',
       });
       expect(result.lemma, 'cow');
-      expect(result.translationRu, 'корова');
+      expect(result.translation, 'корова');
       expect(result.pos, TranslatePos.noun);
     });
 
     test('contextual translation is parsed when different', () {
       final TranslateResult result = validateTranslateJson({
         'lemma': 'bank',
-        'translation_ru': 'банк',
+        'translation': 'банк',
         'translation_in_context': 'берег',
         'pos': 'noun',
       });
-      expect(result.translationRu, 'банк');
+      expect(result.translation, 'банк');
       expect(result.translationInContext, 'берег');
     });
 
     test('missing or empty contextual translation falls back', () {
       final TranslateResult missing = validateTranslateJson({
         'lemma': 'cow',
-        'translation_ru': 'корова',
+        'translation': 'корова',
         'pos': 'noun',
       });
       expect(missing.translationInContext, 'корова');
 
       final TranslateResult empty = validateTranslateJson({
         'lemma': 'cow',
-        'translation_ru': 'корова',
+        'translation': 'корова',
         'translation_in_context': '   ',
         'pos': 'noun',
       });
@@ -166,7 +166,7 @@ void main() {
       expect(
         () => validateTranslateJson({
           'lemma': 'cow',
-          'translation_ru': 'корова',
+          'translation': 'корова',
           'translation_in_context': 42,
           'pos': 'noun',
         }),
@@ -186,7 +186,7 @@ void main() {
       for (final String value in values) {
         final TranslateResult result = validateTranslateJson({
           'lemma': 'x',
-          'translation_ru': 'y',
+          'translation': 'y',
           'pos': value,
         });
         expect(result.pos.value, value);
@@ -199,11 +199,11 @@ void main() {
         throwsA(isA<InvalidResponseFailure>()),
       );
       expect(
-        () => validateTranslateJson({'translation_ru': 'y', 'pos': 'noun'}),
+        () => validateTranslateJson({'translation': 'y', 'pos': 'noun'}),
         throwsA(isA<InvalidResponseFailure>()),
       );
       expect(
-        () => validateTranslateJson({'lemma': 'x', 'translation_ru': 'y'}),
+        () => validateTranslateJson({'lemma': 'x', 'translation': 'y'}),
         throwsA(isA<InvalidResponseFailure>()),
       );
     });
@@ -212,7 +212,7 @@ void main() {
       expect(
         () => validateTranslateJson({
           'lemma': '   ',
-          'translation_ru': 'корова',
+          'translation': 'корова',
           'pos': 'noun',
         }),
         throwsA(isA<InvalidResponseFailure>()),
@@ -220,7 +220,7 @@ void main() {
       expect(
         () => validateTranslateJson({
           'lemma': 'cow',
-          'translation_ru': '',
+          'translation': '',
           'pos': 'noun',
         }),
         throwsA(isA<InvalidResponseFailure>()),
@@ -231,7 +231,7 @@ void main() {
       expect(
         () => validateTranslateJson({
           'lemma': 'cow',
-          'translation_ru': 'корова',
+          'translation': 'корова',
           'pos': 'adjective',
         }),
         throwsA(isA<InvalidResponseFailure>()),
@@ -242,7 +242,7 @@ void main() {
       expect(
         () => validateTranslateJson({
           'lemma': 42,
-          'translation_ru': 'корова',
+          'translation': 'корова',
           'pos': 'noun',
         }),
         throwsA(isA<InvalidResponseFailure>()),
@@ -333,7 +333,7 @@ void main() {
   group('completeJson', () {
     test('success on first try makes one call', () async {
       final FakeLlmClient client = FakeLlmClient([
-        '{"lemma":"cow","translation_ru":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
       ]);
 
       final TranslateResult result = await completeJson(
@@ -350,7 +350,7 @@ void main() {
     test('invalid first reply retries once with the prompt line', () async {
       final FakeLlmClient client = FakeLlmClient([
         'not json at all',
-        '{"lemma":"cow","translation_ru":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
       ]);
 
       final TranslateResult result = await completeJson(
@@ -371,8 +371,8 @@ void main() {
 
     test('validator failure also triggers one retry', () async {
       final FakeLlmClient client = FakeLlmClient([
-        '{"lemma":"cow","translation_ru":"корова","pos":"bogus"}',
-        '{"lemma":"cow","translation_ru":"корова","pos":"noun"}',
+        '{"lemma":"cow","translation":"корова","pos":"bogus"}',
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
       ]);
 
       final TranslateResult result = await completeJson(
