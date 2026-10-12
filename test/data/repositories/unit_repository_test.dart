@@ -104,7 +104,59 @@ void main() {
       await repo.add(text: 'Cow');
       final Unit other = await repo.add(text: 'Milk');
 
-      expect(() => repo.update(other.copyWith(text: 'cow')), throwsException);
+      expect(
+        () => repo.update(other.copyWith(text: 'cow')),
+        throwsA(isA<SqliteException>()),
+      );
+    });
+
+    test('update a missing id throws ArgumentError (A-51)', () async {
+      final Unit created = await repo.add(text: 'Cow');
+      await repo.delete(created.id);
+
+      expect(
+        () => repo.update(created.copyWith(text: 'Milk')),
+        throwsArgumentError,
+      );
+    });
+
+    test('updateWord keeps the FSRS snapshot and Known flag', () async {
+      final Unit created = await repo.add(text: 'Cow', forms: ['cows']);
+      final Unit reviewed = await repo.update(
+        created.copyWith(
+          phase: CardPhase.review,
+          stability: 30,
+          fsrsJson: '{"phase":2}',
+          due: initial.add(const Duration(days: 30)),
+          lastReview: initial,
+          knownManual: true,
+        ),
+      );
+
+      final Unit updated = await repo.updateWord(created.id, text: '  Milk ');
+
+      expect(updated.text, 'Milk');
+      expect(updated.textKey, 'milk');
+      expect(updated.phase, CardPhase.review);
+      expect(updated.stability, 30);
+      expect(updated.fsrsJson, '{"phase":2}');
+      expect(updated.due, reviewed.due);
+      expect(updated.lastReview, initial);
+      expect(updated.knownManual, isTrue);
+      expect(await repo.findByKey('cow'), isNull);
+      // Forms survive, except one that equals the new key.
+      expect(updated.forms, ['cows']);
+      final Unit renamed = await repo.updateWord(created.id, text: 'Cows');
+      expect(renamed.forms, isEmpty);
+    });
+
+    test('updateWord rejects a colliding key and blank text', () async {
+      await repo.add(text: 'Cow');
+      final Unit other = await repo.add(text: 'Milk');
+
+      expect(() => repo.updateWord(other.id, text: 'cow'), throwsException);
+      expect(() => repo.updateWord(other.id, text: '  '), throwsArgumentError);
+      expect(() => repo.updateWord(999, text: 'word'), throwsArgumentError);
     });
 
     test('delete removes the unit', () async {

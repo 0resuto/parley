@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
@@ -62,6 +64,28 @@ void main() {
     );
   });
 
+  test('exact due timestamps per rating (fuzzing disabled)', () {
+    final SrsCard card = service.newCard(now);
+
+    // Learning steps are 1m and 10m; easy uses the initial stability.
+    expect(
+      service.review(card, Rating.again, now).due,
+      DateTime.utc(2026, 1, 1, 12, 1),
+    );
+    expect(
+      service.review(card, Rating.hard, now).due,
+      DateTime.utc(2026, 1, 1, 12, 5, 30),
+    );
+    expect(
+      service.review(card, Rating.good, now).due,
+      DateTime.utc(2026, 1, 1, 12, 10),
+    );
+    expect(
+      service.review(card, Rating.easy, now).due,
+      DateTime.utc(2026, 1, 17, 12),
+    );
+  });
+
   test('serialization round trip for new and reviewed cards', () {
     final SrsCard fresh = service.newCard(now);
     expect(SrsCard.fromJson(fresh.toJson()), fresh);
@@ -73,6 +97,91 @@ void main() {
 
     // The stored string is valid JSON with the phase value.
     expect(reviewed.toJson(), contains('"phase"'));
+  });
+
+  test('int JSON numbers parse as doubles in SrsCard.fromMap (A-59)', () {
+    final Map<String, dynamic> map = <String, dynamic>{
+      'phase': 2,
+      'due': '2026-01-01T12:00:00.000Z',
+      'stability': 30,
+      'lastReview': '2026-01-01T12:00:00.000Z',
+      'difficulty': 5,
+      'step': null,
+      'cardId': 1,
+    };
+
+    final SrsCard fromMap = SrsCard.fromMap(map);
+    expect(fromMap.stability, 30.0);
+    expect(fromMap.difficulty, 5.0);
+
+    // Exactly the export/import round trip: jsonDecode turns 30 into int.
+    final SrsCard fromJson = SrsCard.fromJson(jsonEncode(map));
+    expect(fromJson.stability, 30.0);
+    expect(fromJson, fromMap);
+  });
+
+  test('non-finite stability or difficulty cannot be written to JSON', () {
+    SrsCard cardWith({double? stability, double? difficulty}) => SrsCard(
+      phase: CardPhase.review,
+      due: now,
+      stability: stability,
+      lastReview: now,
+      difficulty: difficulty,
+      step: null,
+      cardId: 1,
+    );
+
+    // JSON has no NaN/Infinity; encoding must fail loudly, not silently
+    // corrupt the stored scheduling state.
+    expect(
+      () => cardWith(stability: double.nan, difficulty: 5.0).toJson(),
+      throwsA(isA<JsonUnsupportedObjectError>()),
+    );
+    expect(
+      () => cardWith(stability: 30.0, difficulty: double.infinity).toJson(),
+      throwsA(isA<JsonUnsupportedObjectError>()),
+    );
+  });
+
+  test('due and lastReview round-trip for UTC and non-UTC dates', () {
+    final SrsCard localCard = SrsCard(
+      phase: CardPhase.review,
+      due: DateTime(2026, 3, 1, 12),
+      stability: 10.5,
+      lastReview: DateTime(2026, 3, 1, 12),
+      difficulty: 5.0,
+      step: null,
+      cardId: 42,
+    );
+    final SrsCard localRoundTrip = SrsCard.fromJson(localCard.toJson());
+    expect(localRoundTrip, localCard);
+    expect(localRoundTrip.due.isUtc, isFalse);
+    expect(localRoundTrip.lastReview!.isUtc, isFalse);
+
+    final SrsCard utcCard = SrsCard(
+      phase: CardPhase.review,
+      due: DateTime.utc(2026, 3, 1, 12),
+      stability: 10.5,
+      lastReview: DateTime.utc(2026, 2, 28, 12),
+      difficulty: 5.0,
+      step: null,
+      cardId: 42,
+    );
+    final SrsCard utcRoundTrip = SrsCard.fromJson(utcCard.toJson());
+    expect(utcRoundTrip, utcCard);
+    expect(utcRoundTrip.due.isUtc, isTrue);
+
+    // The service always schedules in UTC, even for a local `now`.
+    final DateTime localNow = DateTime(2026, 3, 1, 12);
+    final SrsCard scheduled = service.review(
+      service.newCard(localNow),
+      Rating.good,
+      localNow,
+    );
+    expect(scheduled.due.isUtc, isTrue);
+    expect(scheduled.due, localNow.toUtc().add(const Duration(minutes: 10)));
+    expect(scheduled.lastReview, localNow.toUtc());
+    expect(SrsCard.fromJson(scheduled.toJson()), scheduled);
   });
 
   test('phase mapping covers new, learning, review and relearning', () {

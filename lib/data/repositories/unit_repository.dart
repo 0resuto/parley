@@ -57,6 +57,36 @@ class UnitRepository {
     return created!;
   }
 
+  /// Adds many units in one transaction, preserving order.
+  ///
+  /// Used by the CSV import (A-13): one transaction instead of one commit
+  /// per row, so a large file does not take minutes.
+  Future<List<Unit>> addAll(List<String> texts) {
+    return _db.transaction(() async {
+      final List<Unit> created = [];
+      for (final String text in texts) {
+        created.add(await add(text: text));
+      }
+      return created;
+    });
+  }
+
+  /// Every normalized key in the dictionary: `text_key` plus stored forms.
+  ///
+  /// One query for bulk duplicate checks (A-13, CSV import) instead of a
+  /// full-table scan per key.
+  Future<Set<String>> allKeys() async {
+    final List<TypedResult> rows = await (_db.selectOnly(
+      _db.units,
+    )..addColumns([_db.units.textKey, _db.units.forms])).get();
+    final Set<String> keys = <String>{};
+    for (final TypedResult row in rows) {
+      keys.add(row.read(_db.units.textKey)!);
+      keys.addAll(decodeForms(row.read(_db.units.forms) ?? '[]'));
+    }
+    return keys;
+  }
+
   /// Finds a unit by normalized key matching `text_key` or `forms`.
   Future<Unit?> findByKey(String query) async {
     final String key = normalizeKey(query);
@@ -91,7 +121,8 @@ class UnitRepository {
   /// Replaces the unit row with [unit] (by id).
   ///
   /// [unit.text] is trimmed and [unit.textKey] is recomputed so the row
-  /// stays consistent. Throws when the new key collides.
+  /// stays consistent. Throws when the new key collides or the unit does
+  /// not exist.
   Future<Unit> update(Unit unit) async {
     final String trimmed = unit.text.trim();
     if (trimmed.isEmpty) {
@@ -118,6 +149,43 @@ class UnitRepository {
       ),
     );
     final Unit? updated = await getById(unit.id);
+    if (updated == null) {
+      // A missing id must surface as an explicit error, not a TypeError
+      // from a null check (A-51).
+      throw ArgumentError('unit not found');
+    }
+    return updated;
+  }
+
+  /// Updates only the editable word fields, keeping the FSRS snapshot,
+  /// the Known flag and the description untouched.
+  ///
+  /// Unlike [update], this never writes a stale [Unit] model back, so a
+  /// review that happened while the edit screen was open survives the
+  /// save (A-24). Forms are renormalized against the new key.
+  /// Throws when [text] is blank or the new key collides.
+  Future<Unit> updateWord(int id, {required String text}) async {
+    final String trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('text is required');
+    }
+    final String key = normalizeKey(trimmed);
+    if (key.isEmpty) {
+      throw ArgumentError('text is required');
+    }
+    final Unit? current = await getById(id);
+    if (current == null) {
+      throw ArgumentError('unit not found');
+    }
+    final List<String> normalizedForms = _normalizeForms(current.forms, key);
+    await (_db.update(_db.units)..where((t) => t.id.equals(id))).write(
+      db.UnitsCompanion(
+        unitText: Value(trimmed),
+        textKey: Value(key),
+        forms: Value(encodeForms(normalizedForms)),
+      ),
+    );
+    final Unit? updated = await getById(id);
     return updated!;
   }
 

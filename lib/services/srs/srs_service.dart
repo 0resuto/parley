@@ -108,7 +108,8 @@ class SrsCard {
     return SrsCard(
       phase: CardPhase.fromValue(map['phase'] as int),
       due: DateTime.parse(map['due'] as String),
-      stability: map['stability'] as double?,
+      // (A-59) JSON round trips may store whole numbers as int.
+      stability: (map['stability'] as num?)?.toDouble(),
       lastReview: map['lastReview'] != null
           ? DateTime.parse(map['lastReview'] as String)
           : null,

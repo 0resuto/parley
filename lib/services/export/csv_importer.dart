@@ -22,8 +22,13 @@ class CsvImportSummary {
 /// Delimiter `;`, UTF-8, one unit per line: `word;translation`
 /// (translation optional and ignored: meanings resolve live, PLAN 19.1).
 /// Empty lines and existing duplicates are skipped. An optional first-line
-/// header `word;translation` is ignored. No quoting support: lines are split
-/// on `;` and only the first two columns are used.
+/// header whose first column is `word` or `text` (trimmed, case-insensitive)
+/// is ignored, whatever other columns it has. No quoting support: lines are
+/// split on `;` and only the first two columns are used.
+///
+/// The whole file is parsed first, then all new words are added in one
+/// transaction (A-13): keys are preloaded with a single query instead of
+/// scanning the table per line.
 class CsvImporter {
   CsvImporter({required UnitRepository units}) : _units = units;
 
@@ -36,14 +41,18 @@ class CsvImporter {
         : content;
     final List<String> lines = withoutBom.split(RegExp(r'\r\n|\r|\n'));
 
-    int added = 0;
+    final Set<String> known = await _units.allKeys();
+    final List<String> toAdd = [];
     int skipped = 0;
     bool isFirstLine = true;
     for (final String rawLine in lines) {
       final String line = rawLine.trim();
       if (isFirstLine) {
         isFirstLine = false;
-        if (line.toLowerCase() == 'word;translation') {
+        // (A-58) The header is recognized by its first column name only, so
+        // extra columns (`word;translation;note`) do not leak in as a word.
+        final String firstColumn = line.split(';').first.trim().toLowerCase();
+        if (firstColumn == 'word' || firstColumn == 'text') {
           continue;
         }
       }
@@ -55,14 +64,15 @@ class CsvImporter {
       if (word.isEmpty || normalizeKey(word).isEmpty) {
         continue;
       }
-      final Unit? existing = await _units.findByKey(word);
-      if (existing != null) {
+      final String key = normalizeKey(word);
+      if (known.contains(key)) {
         skipped++;
         continue;
       }
-      await _units.add(text: word);
-      added++;
+      known.add(key);
+      toAdd.add(word);
     }
-    return CsvImportSummary(added: added, skipped: skipped);
+    await _units.addAll(toAdd);
+    return CsvImportSummary(added: toAdd.length, skipped: skipped);
   }
 }

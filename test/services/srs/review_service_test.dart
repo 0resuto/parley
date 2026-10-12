@@ -148,6 +148,24 @@ void main() {
       expect((await allReviews()).single.reviewedAt.toUtc(), at);
       expect(clock.now(), initial);
     });
+
+    test('a failed review insert rolls the FSRS update back', () async {
+      final Unit unit = await repo.add(text: 'Cow');
+      await db.customStatement(
+        'CREATE TRIGGER fail_reviews BEFORE INSERT ON reviews '
+        "BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+      );
+
+      await expectLater(
+        reviews.rate(unit.id, Rating.good, ReviewSource.card),
+        throwsA(isA<Exception>()),
+      );
+
+      final Unit? after = await repo.getById(unit.id);
+      expect(after, unit);
+      expect(after!.lastReview, isNull);
+      expect(await allReviews(), isEmpty);
+    });
   });
 
   group('ReviewSource', () {

@@ -72,25 +72,29 @@ class ReviewService {
     final DateTime now = (at ?? _clock.now()).toUtc();
     final SrsCard current = SrsCard.fromJson(unit.fsrsJson);
     final SrsCard next = _srs.review(current, rating, now);
-    final Unit updated = await _units.update(
-      unit.copyWith(
-        phase: next.phase,
-        due: next.due,
-        stability: next.stability,
-        fsrsJson: next.toJson(),
-        lastReview: now,
-      ),
-    );
-    await _db
-        .into(_db.reviews)
-        .insert(
-          db.ReviewsCompanion.insert(
-            unitId: unitId,
-            rating: rating.value,
-            source: source.value,
-            reviewedAt: now,
-          ),
-        );
-    return updated;
+    // The FSRS update and its review row go together: if the insert
+    // fails, the unit must keep its previous state (A-23).
+    return _db.transaction(() async {
+      final Unit updated = await _units.update(
+        unit.copyWith(
+          phase: next.phase,
+          due: next.due,
+          stability: next.stability,
+          fsrsJson: next.toJson(),
+          lastReview: now,
+        ),
+      );
+      await _db
+          .into(_db.reviews)
+          .insert(
+            db.ReviewsCompanion.insert(
+              unitId: unitId,
+              rating: rating.value,
+              source: source.value,
+              reviewedAt: now,
+            ),
+          );
+      return updated;
+    });
   }
 }

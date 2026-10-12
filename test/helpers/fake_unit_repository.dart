@@ -5,10 +5,10 @@ import 'package:parley/services/srs/srs_service.dart';
 
 /// In-memory fake of [UnitRepository] for widget tests.
 ///
-/// Returns single-emission streams from [watchAll] so there are no drift
-/// stream subscriptions (and no pending timers) in widget tests.
-/// Only the members used by the dictionary UI are implemented; the rest
-/// throw [UnimplementedError].
+/// Mirrors the real repository's behavior (same filters and ordering),
+/// keeping state in a plain list. Returns single-emission streams from
+/// [watchAll] so there are no drift stream subscriptions (and no pending
+/// timers) in widget tests.
 class FakeUnitRepository implements UnitRepository {
   FakeUnitRepository({required Clock clock, SrsService? srs})
     : _clock = clock,
@@ -54,6 +54,25 @@ class FakeUnitRepository implements UnitRepository {
     );
     _units.add(unit);
     return unit;
+  }
+
+  @override
+  Future<List<Unit>> addAll(List<String> texts) async {
+    final List<Unit> created = [];
+    for (final String text in texts) {
+      created.add(await add(text: text));
+    }
+    return created;
+  }
+
+  @override
+  Future<Set<String>> allKeys() async {
+    final Set<String> keys = <String>{};
+    for (final Unit unit in _units) {
+      keys.add(unit.textKey);
+      keys.addAll(unit.forms);
+    }
+    return keys;
   }
 
   @override
@@ -125,7 +144,7 @@ class FakeUnitRepository implements UnitRepository {
   Future<Unit> update(Unit unit) async {
     final int index = _units.indexWhere((u) => u.id == unit.id);
     if (index == -1) {
-      throw StateError('unit not found');
+      throw ArgumentError('unit not found');
     }
     final String trimmed = unit.text.trim();
     if (trimmed.isEmpty) {
@@ -142,6 +161,33 @@ class FakeUnitRepository implements UnitRepository {
       text: trimmed,
       textKey: key,
       forms: _normalizeForms(unit.forms, key),
+    );
+    _units[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<Unit> updateWord(int id, {required String text}) async {
+    final int index = _units.indexWhere((u) => u.id == id);
+    if (index == -1) {
+      throw ArgumentError('unit not found');
+    }
+    final String trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('text is required');
+    }
+    final String key = normalizeKey(trimmed);
+    if (key.isEmpty) {
+      throw ArgumentError('text is required');
+    }
+    if (_units.any((u) => u.id != id && u.textKey == key)) {
+      throw StateError('duplicate text_key');
+    }
+    final Unit current = _units[index];
+    final Unit updated = current.copyWith(
+      text: trimmed,
+      textKey: key,
+      forms: _normalizeForms(current.forms, key),
     );
     _units[index] = updated;
     return updated;
@@ -169,13 +215,65 @@ class FakeUnitRepository implements UnitRepository {
 
   @override
   Future<List<Unit>> targetWords(int limit, DateTime now) async {
-    // Chat prompt tests use an empty dictionary; no target words.
-    return [];
+    final DateTime utc = now.toUtc();
+    final List<Unit> units = _units
+        .where((u) => !u.knownManual && isTargetWord(u))
+        .toList();
+    units.sort((a, b) {
+      final bool aDue = !a.due.isAfter(utc);
+      final bool bDue = !b.due.isAfter(utc);
+      if (aDue && !bDue) {
+        return -1;
+      }
+      if (!aDue && bDue) {
+        return 1;
+      }
+      if (aDue && bDue) {
+        final int byDue = a.due.compareTo(b.due);
+        if (byDue != 0) {
+          return byDue;
+        }
+      }
+      final int byCreated = b.createdAt.compareTo(a.createdAt);
+      if (byCreated != 0) {
+        return byCreated;
+      }
+      return b.id.compareTo(a.id);
+    });
+    if (units.length > limit) {
+      return units.sublist(0, limit);
+    }
+    return units;
   }
 
   @override
   Future<List<Unit>> recentlyKnown(int limit) async {
-    return [];
+    final List<Unit> units = _units.where((u) {
+      final UnitStatus status = statusOf(u);
+      return status == UnitStatus.mature || status == UnitStatus.known;
+    }).toList();
+    units.sort((a, b) {
+      final DateTime? la = a.lastReview;
+      final DateTime? lb = b.lastReview;
+      if (la == null && lb == null) {
+        return b.createdAt.compareTo(a.createdAt);
+      }
+      if (la == null) {
+        return 1;
+      }
+      if (lb == null) {
+        return -1;
+      }
+      final int byReview = lb.compareTo(la);
+      if (byReview != 0) {
+        return byReview;
+      }
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    if (units.length > limit) {
+      return units.sublist(0, limit);
+    }
+    return units;
   }
 
   List<String> _normalizeForms(List<String> forms, String key) {

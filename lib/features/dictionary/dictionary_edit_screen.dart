@@ -68,9 +68,11 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
       final UnitRepository repo = ref.read(unitRepositoryProvider);
       final Unit? existing = await repo.findByKey(text);
       if (existing != null) {
-        setState(() {
-          _formError = duplicateWordError;
-        });
+        if (mounted) {
+          setState(() {
+            _formError = duplicateWordError;
+          });
+        }
         return;
       }
       await repo.add(text: text);
@@ -78,11 +80,13 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() {
-        _formError = _isDuplicate(e)
-            ? duplicateWordError
-            : 'Something went wrong.';
-      });
+      if (mounted) {
+        setState(() {
+          _formError = _isDuplicate(e)
+              ? duplicateWordError
+              : 'Something went wrong.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -191,21 +195,25 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
       final UnitRepository repo = ref.read(unitRepositoryProvider);
       final Unit? existing = await repo.findByKey(text);
       if (existing != null && existing.id != unit.id) {
-        setState(() {
-          _formError = duplicateWordError;
-        });
+        if (mounted) {
+          setState(() {
+            _formError = duplicateWordError;
+          });
+        }
         return;
       }
-      await repo.update(unit.copyWith(text: text));
+      await repo.updateWord(unit.id, text: text);
       if (mounted) {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() {
-        _formError = _isDuplicate(e)
-            ? duplicateWordError
-            : 'Something went wrong.';
-      });
+      if (mounted) {
+        setState(() {
+          _formError = _isDuplicate(e)
+              ? duplicateWordError
+              : 'Something went wrong.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {

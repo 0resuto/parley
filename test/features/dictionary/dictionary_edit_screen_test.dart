@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/features/dictionary/dictionary_edit_screen.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
+import 'package:parley/services/srs/srs_service.dart';
 
 import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_unit_repository.dart';
@@ -25,6 +28,26 @@ class FailingDeleteRepository extends FakeUnitRepository {
   @override
   Future<void> delete(int id) async {
     throw StateError('db unavailable');
+  }
+}
+
+/// [FakeUnitRepository] whose [findByKey] can be held open (A-29).
+class GatedLookupRepository extends FakeUnitRepository {
+  GatedLookupRepository({required super.clock});
+
+  Completer<void>? gate;
+  bool failAfterGate = false;
+
+  @override
+  Future<Unit?> findByKey(String query) async {
+    final Completer<void>? blocker = gate;
+    if (blocker != null) {
+      await blocker.future;
+    }
+    if (failAfterGate) {
+      throw StateError('db unavailable');
+    }
+    return super.findByKey(query);
   }
 }
 
@@ -168,6 +191,34 @@ void main() {
       expect((await repo.getById(other.id))?.text, 'Milk');
     });
 
+    testWidgets('a review during editing is not rolled back by save', (
+      WidgetTester tester,
+    ) async {
+      final Unit created = await repo.add(text: 'Cow');
+      await pumpHarness(tester, unitId: created.id);
+
+      // A background review lands while the editor is open.
+      await repo.update(
+        created.copyWith(
+          phase: CardPhase.review,
+          stability: 42,
+          fsrsJson: '{"reviewed":true}',
+          due: initial.add(const Duration(days: 42)),
+          lastReview: initial,
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'Milk');
+      await save(tester);
+
+      final Unit? updated = await repo.getById(created.id);
+      expect(updated?.text, 'Milk');
+      expect(updated?.fsrsJson, '{"reviewed":true}');
+      expect(updated?.stability, 42);
+      expect(updated?.lastReview, initial);
+      expect(updated?.phase, CardPhase.review);
+    });
+
     testWidgets('known switch toggles the unit', (WidgetTester tester) async {
       final Unit created = await repo.add(text: 'Cow');
       await pumpHarness(tester, unitId: created.id);
@@ -295,6 +346,126 @@ void main() {
 
       expect(find.text('Could not delete the word.'), findsOneWidget);
       expect(find.text('Edit word'), findsOneWidget);
+    });
+
+    testWidgets('add: a duplicate found after closing does not setState', (
+      WidgetTester tester,
+    ) async {
+      final GatedLookupRepository gated = GatedLookupRepository(clock: clock);
+      await gated.add(text: 'Cow');
+      gated.gate = Completer<void>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unitRepositoryProvider.overrideWithValue(gated),
+            clockProvider.overrideWithValue(clock),
+          ],
+          child: const MaterialApp(home: DictionaryEditScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'cow');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.pump();
+
+      // The screen is closed while the duplicate lookup is in flight.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      gated.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('add: a lookup error after closing does not setState', (
+      WidgetTester tester,
+    ) async {
+      final GatedLookupRepository gated = GatedLookupRepository(clock: clock)
+        ..gate = Completer<void>()
+        ..failAfterGate = true;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unitRepositoryProvider.overrideWithValue(gated),
+            clockProvider.overrideWithValue(clock),
+          ],
+          child: const MaterialApp(home: DictionaryEditScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'cow');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      gated.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('edit: a duplicate found after closing does not setState', (
+      WidgetTester tester,
+    ) async {
+      final GatedLookupRepository gated = GatedLookupRepository(clock: clock);
+      await gated.add(text: 'Cow');
+      final Unit other = await gated.add(text: 'Milk');
+      gated.gate = Completer<void>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unitRepositoryProvider.overrideWithValue(gated),
+            clockProvider.overrideWithValue(clock),
+          ],
+          child: MaterialApp(home: DictionaryEditScreen(unitId: other.id)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'cow');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      gated.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('edit: a lookup error after closing does not setState', (
+      WidgetTester tester,
+    ) async {
+      final GatedLookupRepository gated = GatedLookupRepository(clock: clock);
+      final Unit created = await gated.add(text: 'Cow');
+      gated
+        ..gate = Completer<void>()
+        ..failAfterGate = true;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unitRepositoryProvider.overrideWithValue(gated),
+            clockProvider.overrideWithValue(clock),
+          ],
+          child: MaterialApp(home: DictionaryEditScreen(unitId: created.id)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Milk');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.pump();
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      gated.gate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
     });
   });
 }
