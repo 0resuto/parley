@@ -93,10 +93,11 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                               }
                             },
                             itemBuilder: (BuildContext context) {
-                              return const [
+                              return [
                                 PopupMenuItem<String>(
                                   value: 'markKnown',
-                                  child: Text('Mark as known'),
+                                  enabled: !state.busy,
+                                  child: const Text('Mark as known'),
                                 ),
                               ];
                             },
@@ -130,15 +131,35 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                           onPressed: controller.reveal,
                           child: const Text('Show answer'),
                         )
-                      else
+                      else if (!state.resolving)
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            _rateButton(controller, Rating.again, 'Again'),
-                            _rateButton(controller, Rating.hard, 'Hard'),
-                            _rateButton(controller, Rating.good, 'Good'),
-                            _rateButton(controller, Rating.easy, 'Easy'),
+                            _rateButton(
+                              controller,
+                              Rating.again,
+                              'Again',
+                              enabled: !state.busy,
+                            ),
+                            _rateButton(
+                              controller,
+                              Rating.hard,
+                              'Hard',
+                              enabled: !state.busy,
+                            ),
+                            _rateButton(
+                              controller,
+                              Rating.good,
+                              'Good',
+                              enabled: !state.busy,
+                            ),
+                            _rateButton(
+                              controller,
+                              Rating.easy,
+                              'Easy',
+                              enabled: !state.busy,
+                            ),
                           ],
                         ),
                     ],
@@ -152,9 +173,14 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     );
   }
 
-  Widget _rateButton(CardsController controller, Rating rating, String label) {
+  Widget _rateButton(
+    CardsController controller,
+    Rating rating,
+    String label, {
+    required bool enabled,
+  }) {
     return ElevatedButton(
-      onPressed: () => controller.rate(rating),
+      onPressed: enabled ? () => controller.rate(rating) : null,
       child: Text(label),
     );
   }

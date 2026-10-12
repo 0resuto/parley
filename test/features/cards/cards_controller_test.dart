@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -124,7 +126,7 @@ void main() {
       CardsState state = await refresh();
       expect(state.queue.map((u) => u.text), ['alpha', 'beta']);
 
-      container.read(cardsControllerProvider.notifier).reveal();
+      await container.read(cardsControllerProvider.notifier).reveal();
       expect(container.read(cardsControllerProvider).revealed, isTrue);
 
       await container.read(cardsControllerProvider.notifier).rate(Rating.good);
@@ -138,6 +140,47 @@ void main() {
           .read(unitRepositoryProvider)
           .dueQueue(initial);
       expect(queue.map((u) => u.text), ['beta']);
+    });
+
+    test('a second rate while the first is in flight is ignored', () async {
+      await addWord('cow');
+      await refresh();
+
+      final CardsController controller = container.read(
+        cardsControllerProvider.notifier,
+      );
+      final Future<void> first = controller.rate(Rating.good);
+      final Future<void> second = controller.rate(Rating.good);
+      await Future.wait([first, second]);
+
+      expect(await db.select(db.reviews).get(), hasLength(1));
+      expect(container.read(cardsControllerProvider).isEmpty, isTrue);
+    });
+
+    test('rate is ignored while the meaning is still resolving', () async {
+      container.dispose();
+      final FakeDictionaryService dictionary = FakeDictionaryService({
+        'cow': 'корова',
+      });
+      dictionary.gate = Completer<void>();
+      container = makeContainer(dictionary: dictionary);
+      await addWord('cow');
+      await refresh();
+
+      final CardsController controller = container.read(
+        cardsControllerProvider.notifier,
+      );
+      final Future<void> revealFuture = controller.reveal();
+      expect(container.read(cardsControllerProvider).resolving, isTrue);
+
+      await controller.rate(Rating.good);
+
+      expect(container.read(cardsControllerProvider).current?.text, 'cow');
+      expect(await db.select(db.reviews).get(), isEmpty);
+
+      dictionary.gate!.complete();
+      await revealFuture;
+      expect(container.read(cardsControllerProvider).meaning, 'корова');
     });
 
     test('empty queue state with future-only units', () async {

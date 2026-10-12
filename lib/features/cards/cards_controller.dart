@@ -17,6 +17,8 @@ import 'package:parley/services/srs/srs_service.dart';
 /// reveal this meaning.
 /// [error] is non-null when the queue could not be loaded or an action
 /// failed; the screen shows it with a Retry button (PLAN 9.1).
+/// [busy] is true while a rating or mark-known action is in flight; the
+/// screen disables the actions until it finishes.
 class CardsState {
   const CardsState({
     required this.queue,
@@ -24,6 +26,7 @@ class CardsState {
     required this.meaning,
     required this.resolving,
     required this.isLoading,
+    this.busy = false,
     this.error,
   });
 
@@ -33,6 +36,7 @@ class CardsState {
       meaning = null,
       resolving = false,
       isLoading = true,
+      busy = false,
       error = null;
 
   final List<Unit> queue;
@@ -40,6 +44,7 @@ class CardsState {
   final String? meaning;
   final bool resolving;
   final bool isLoading;
+  final bool busy;
 
   /// English error text shown with a Retry button (null when none).
   final String? error;
@@ -59,6 +64,7 @@ class CardsState {
     String? meaning,
     bool? resolving,
     bool? isLoading,
+    bool? busy,
     String? error,
     bool clearError = false,
   }) {
@@ -68,6 +74,7 @@ class CardsState {
       meaning: meaning ?? this.meaning,
       resolving: resolving ?? this.resolving,
       isLoading: isLoading ?? this.isLoading,
+      busy: busy ?? this.busy,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -148,13 +155,16 @@ class CardsController extends Notifier<CardsState> {
 
   /// Rates the current card and moves to the next one.
   ///
+  /// Ignored while the answer is still resolving (the meaning must be shown
+  /// first, SPEC 5.2) and while another action is in flight.
   /// Failures are exposed as [CardsState.error] instead of throwing
   /// (PLAN 9.1); the screen shows a Retry button.
   Future<void> rate(Rating rating) async {
     final Unit? current = state.current;
-    if (current == null) {
+    if (current == null || state.resolving || state.busy) {
       return;
     }
+    state = state.copyWith(busy: true);
     try {
       await ref
           .read(reviewServiceProvider)
@@ -163,7 +173,7 @@ class CardsController extends Notifier<CardsState> {
       if (!ref.mounted) {
         return;
       }
-      state = state.copyWith(error: 'Something went wrong.');
+      state = state.copyWith(error: 'Something went wrong.', busy: false);
       return;
     }
     await refresh();
@@ -171,20 +181,21 @@ class CardsController extends Notifier<CardsState> {
 
   /// Marks the current card as known and moves to the next one.
   ///
-  /// Failures are exposed as [CardsState.error] instead of throwing
-  /// (PLAN 9.1).
+  /// Ignored while another action is in flight. Failures are exposed as
+  /// [CardsState.error] instead of throwing (PLAN 9.1).
   Future<void> markKnown() async {
     final Unit? current = state.current;
-    if (current == null) {
+    if (current == null || state.busy) {
       return;
     }
+    state = state.copyWith(busy: true);
     try {
       await ref.read(unitRepositoryProvider).setKnown(current.id, true);
     } catch (_) {
       if (!ref.mounted) {
         return;
       }
-      state = state.copyWith(error: 'Something went wrong.');
+      state = state.copyWith(error: 'Something went wrong.', busy: false);
       return;
     }
     await refresh();
