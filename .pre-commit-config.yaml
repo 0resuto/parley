@@ -33,7 +33,7 @@ repos:
         pass_filenames: false
       - id: flutter-analyze
         name: flutter analyze
-        entry: flutter analyze
+        entry: flutter analyze --fatal-infos
         language: system
         pass_filenames: false
       - id: flutter-test
