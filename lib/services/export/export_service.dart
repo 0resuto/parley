@@ -76,8 +76,9 @@ class ImportSummary {
 /// JSON export and import, format v2 (SPEC 4.5).
 ///
 /// Units merge by `text_key`. Reviews link to units by unit text and are
-/// always appended. Rules/notes are replaced only when [ImportOptions]
-/// asks for it.
+/// appended unless an identical review already exists. Rules/notes are
+/// replaced only when [ImportOptions] asks for it, and must fit the
+/// document limits.
 class ExportService {
   ExportService({
     required db.AppDatabase database,
@@ -132,6 +133,10 @@ class ExportService {
 
   /// Parses and merges an export document, returning the summary.
   ///
+  /// The whole document is validated before anything is written, and all
+  /// database writes run in one transaction, so a broken file never leaves
+  /// a partial import behind. Reviews are appended unless an identical
+  /// review (unit, rating, source, timestamp to the second) already exists.
   /// Throws [ExportFormatException] on invalid files.
   Future<ImportSummary> importJson(
     String source, {
@@ -140,79 +145,119 @@ class ExportService {
     final Map<String, dynamic> doc = _parseDocument(source);
     final List<dynamic> rawUnits = _listField(doc, 'units');
     final List<dynamic> rawReviews = _listField(doc, 'reviews');
+    final List<_UnitEntry> units = [
+      for (final Object? entry in rawUnits) _parseUnit(entry),
+    ];
+    final List<_ReviewEntry> reviews = [
+      for (final Object? entry in rawReviews) _parseReview(entry),
+    ];
+    final String rules = options.replaceDocs
+        ? _optionalString(doc, 'rules')
+        : '';
+    final String notes = options.replaceDocs
+        ? _optionalString(doc, 'notes')
+        : '';
+    if (options.replaceDocs) {
+      _checkDocumentLimit(DocumentKind.rules, rules, 'rules');
+      _checkDocumentLimit(DocumentKind.notes, notes, 'notes');
+    }
+
+    final List<Unit> existingUnits = await _units.watchAll().first;
 
     int added = 0;
     int skipped = 0;
     int overwritten = 0;
-    final Map<String, Unit> byKey = {
-      for (final Unit unit in await _units.watchAll().first) unit.textKey: unit,
-    };
-    for (final Object? entry in rawUnits) {
-      final _UnitEntry unit = _parseUnit(entry);
-      final Unit? existing = byKey[unit.key];
-      if (existing == null) {
-        final Unit created = await _units.add(
-          text: unit.text,
-          description: unit.description,
-          forms: unit.forms,
-        );
-        byKey[unit.key] = await _units.update(
-          created.copyWith(
-            knownManual: unit.knownManual,
-            phase: unit.phase,
-            due: unit.due,
-            stability: unit.stability,
-            fsrsJson: unit.fsrsJson,
-            createdAt: unit.createdAt,
-            lastReview: unit.lastReview,
-          ),
-        );
-        added++;
-      } else if (options.overwriteExisting) {
-        byKey[unit.key] = await _units.update(
-          existing.copyWith(
+    int reviewsAdded = 0;
+    await _db.transaction(() async {
+      final Map<String, Unit> byKey = {
+        for (final Unit unit in existingUnits) unit.textKey: unit,
+      };
+      for (final _UnitEntry unit in units) {
+        final Unit? existing = byKey[unit.key];
+        if (existing == null) {
+          final Unit created = await _units.add(
             text: unit.text,
             description: unit.description,
             forms: unit.forms,
-            knownManual: unit.knownManual,
-            phase: unit.phase,
-            due: unit.due,
-            stability: unit.stability,
-            fsrsJson: unit.fsrsJson,
-            createdAt: unit.createdAt,
-            lastReview: unit.lastReview,
-          ),
-        );
-        overwritten++;
-      } else {
-        skipped++;
-      }
-    }
-
-    int reviewsAdded = 0;
-    for (final Object? entry in rawReviews) {
-      final _ReviewEntry review = _parseReview(entry);
-      final Unit? unit = byKey[review.key];
-      if (unit == null) {
-        continue;
-      }
-      await _db
-          .into(_db.reviews)
-          .insert(
-            db.ReviewsCompanion.insert(
-              unitId: unit.id,
-              rating: review.rating.value,
-              source: review.source.value,
-              reviewedAt: review.reviewedAt,
+          );
+          byKey[unit.key] = await _units.update(
+            created.copyWith(
+              knownManual: unit.knownManual,
+              phase: unit.phase,
+              due: unit.due,
+              stability: unit.stability,
+              fsrsJson: unit.fsrsJson,
+              createdAt: unit.createdAt,
+              lastReview: unit.lastReview,
             ),
           );
-      reviewsAdded++;
-    }
+          added++;
+        } else if (options.overwriteExisting) {
+          // Full replace, so nullable fields the file does not carry
+          // (description, stability, last review) are cleared as well.
+          byKey[unit.key] = await _units.update(
+            Unit(
+              id: existing.id,
+              text: unit.text,
+              textKey: unit.key,
+              forms: unit.forms,
+              description: unit.description,
+              knownManual: unit.knownManual,
+              phase: unit.phase,
+              due: unit.due,
+              stability: unit.stability,
+              fsrsJson: unit.fsrsJson,
+              createdAt: unit.createdAt,
+              lastReview: unit.lastReview,
+            ),
+          );
+          overwritten++;
+        } else {
+          skipped++;
+        }
+      }
+
+      final Set<(int, int, String, int)> seenReviews = {
+        for (final db.Review row in await _db.select(_db.reviews).get())
+          (
+            row.unitId,
+            row.rating,
+            row.source,
+            row.reviewedAt.millisecondsSinceEpoch ~/ 1000,
+          ),
+      };
+      for (final _ReviewEntry review in reviews) {
+        final Unit? unit = byKey[review.key];
+        if (unit == null) {
+          continue;
+        }
+        final (int, int, String, int) key = (
+          unit.id,
+          review.rating.value,
+          review.source.value,
+          review.reviewedAt.millisecondsSinceEpoch ~/ 1000,
+        );
+        if (!seenReviews.add(key)) {
+          continue;
+        }
+        await _db
+            .into(_db.reviews)
+            .insert(
+              db.ReviewsCompanion.insert(
+                unitId: unit.id,
+                rating: review.rating.value,
+                source: review.source.value,
+                reviewedAt: review.reviewedAt,
+              ),
+            );
+        reviewsAdded++;
+      }
+    });
 
     bool docsReplaced = false;
     if (options.replaceDocs) {
-      await _documents.write(DocumentKind.rules, _optionalString(doc, 'rules'));
-      await _documents.write(DocumentKind.notes, _optionalString(doc, 'notes'));
+      await _documents.write(DocumentKind.rules, rules);
+      await _documents.write(DocumentKind.notes, notes);
       docsReplaced = true;
     }
     return ImportSummary(
@@ -222,6 +267,15 @@ class ExportService {
       reviewsAdded: reviewsAdded,
       docsReplaced: docsReplaced,
     );
+  }
+
+  void _checkDocumentLimit(DocumentKind kind, String text, String label) {
+    final int limit = _documents.limitFor(kind);
+    if (text.length > limit) {
+      throw ExportFormatException(
+        'The "$label" document is longer than $limit characters.',
+      );
+    }
   }
 
   Map<String, dynamic> _exportUnit(Unit unit) {

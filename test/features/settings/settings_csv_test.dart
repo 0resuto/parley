@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +27,8 @@ class FakeFilePickerService implements FilePickerService {
   PickedJsonFile? nextJson;
   PickedCsvFile? nextCsv;
   Object? nextError;
+  int csvCalls = 0;
+  Completer<PickedCsvFile?>? gate;
 
   @override
   Future<PickedJsonFile?> pickJsonFile() async {
@@ -35,6 +40,11 @@ class FakeFilePickerService implements FilePickerService {
 
   @override
   Future<PickedCsvFile?> pickCsvFile() async {
+    csvCalls++;
+    final Completer<PickedCsvFile?>? blocker = gate;
+    if (blocker != null) {
+      return blocker.future;
+    }
     if (nextError != null) {
       throw nextError!;
     }
@@ -42,7 +52,7 @@ class FakeFilePickerService implements FilePickerService {
   }
 
   @override
-  Future<PickedDictionaryFile?> pickDictionaryFile() {
+  Future<List<String>?> pickDictionaryFiles() {
     throw UnimplementedError();
   }
 }
@@ -58,7 +68,14 @@ void main() {
   setUp(() {
     clock = FakeClock(DateTime.utc(2026, 1, 10, 12));
     repo = FakeUnitRepository(clock: clock);
-    db = AppDatabase(NativeDatabase.memory());
+    // (T-20) Close streams synchronously so no drift timer stays pending;
+    // same pattern as `test/app_test.dart`.
+    db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
     docs = MemoryDocumentStore();
     service = ExportService(
       database: db,
@@ -145,6 +162,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Could not read the file.'), findsOneWidget);
+    });
+
+    testWidgets('a double tap opens only one picker (A-15)', (
+      WidgetTester tester,
+    ) async {
+      final picker = FakeFilePickerService()
+        ..gate = Completer<PickedCsvFile?>();
+      await pumpSettings(tester, picker);
+
+      await tester.ensureVisible(find.text('Import CSV'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Import CSV'));
+      await tester.pump();
+      await tester.tap(find.text('Import CSV'));
+      await tester.pump();
+
+      expect(picker.csvCalls, 1);
+
+      picker.gate!.complete(null);
+      await tester.pumpAndSettle();
     });
   });
 }

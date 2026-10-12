@@ -1,8 +1,9 @@
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:parley/core/constants.dart';
 import 'package:parley/data/db/database.dart' hide Unit;
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/unit_repository.dart';
@@ -187,7 +188,23 @@ void main() {
       expect(summary.added, 0);
       expect(summary.skipped, 3);
       expect(summary.overwritten, 0);
-      expect(summary.reviewsAdded, 3);
+      // The reviews already exist, so re-importing appends nothing.
+      expect(summary.reviewsAdded, 0);
+      expect(await db.select(db.reviews).get(), hasLength(3));
+    });
+
+    test('overwrite does not duplicate reviews', () async {
+      await seed();
+      final String payload = await service.exportJson();
+
+      final ImportSummary summary = await service.importJson(
+        payload,
+        options: const ImportOptions(overwriteExisting: true),
+      );
+
+      expect(summary.overwritten, 3);
+      expect(summary.reviewsAdded, 0);
+      expect(await db.select(db.reviews).get(), hasLength(3));
     });
 
     test('overwrite replaces existing units', () async {
@@ -225,6 +242,108 @@ void main() {
     });
   });
 
+  group('import safety', () {
+    test('a broken unit leaves nothing imported', () async {
+      final AppDatabase source = AppDatabase(NativeDatabase.memory());
+      final UnitRepository sourceUnits = UnitRepository(source, clock: clock);
+      try {
+        await sourceUnits.add(text: 'Alpha');
+        await sourceUnits.add(text: 'Beta');
+        final String payload = await freshService(
+          source,
+          sourceUnits,
+          MemoryDocumentStore(),
+        ).exportJson();
+        final Map<String, dynamic> doc =
+            jsonDecode(payload) as Map<String, dynamic>;
+        final List<dynamic> list = doc['units'] as List;
+        list.removeWhere((u) => (u as Map)['text'] == 'Beta');
+        list.add(<String, dynamic>{});
+
+        await expectLater(
+          service.importJson(jsonEncode(doc)),
+          throwsA(isA<ExportFormatException>()),
+        );
+
+        expect(await units.watchAll().first, isEmpty);
+      } finally {
+        await source.close();
+      }
+    });
+
+    test('a broken review leaves nothing imported', () async {
+      final AppDatabase source = AppDatabase(NativeDatabase.memory());
+      final UnitRepository sourceUnits = UnitRepository(source, clock: clock);
+      try {
+        final Unit alpha = await sourceUnits.add(text: 'Alpha');
+        final ReviewService sourceReviews = ReviewService(
+          source,
+          units: sourceUnits,
+          clock: clock,
+        );
+        await sourceReviews.rate(
+          alpha.id,
+          Rating.good,
+          ReviewSource.card,
+          at: initial.add(const Duration(hours: 1)),
+        );
+        final String payload = await freshService(
+          source,
+          sourceUnits,
+          MemoryDocumentStore(),
+        ).exportJson();
+        final Map<String, dynamic> doc =
+            jsonDecode(payload) as Map<String, dynamic>;
+        (doc['reviews'] as List).add(<String, dynamic>{'unit_text': 'Ghost'});
+
+        await expectLater(
+          service.importJson(jsonEncode(doc)),
+          throwsA(isA<ExportFormatException>()),
+        );
+
+        expect(await units.watchAll().first, isEmpty);
+        expect(await db.select(db.reviews).get(), isEmpty);
+      } finally {
+        await source.close();
+      }
+    });
+
+    test('overwrite clears fields the file does not carry', () async {
+      final Unit cow = await units.add(text: 'Cow', description: 'White drink');
+      await reviews.rate(
+        cow.id,
+        Rating.good,
+        ReviewSource.card,
+        at: initial.add(const Duration(hours: 1)),
+      );
+      expect((await units.getById(cow.id))?.lastReview, isNotNull);
+
+      final AppDatabase source = AppDatabase(NativeDatabase.memory());
+      final UnitRepository sourceUnits = UnitRepository(source, clock: clock);
+      try {
+        await sourceUnits.add(text: 'Cow');
+        final String payload = await freshService(
+          source,
+          sourceUnits,
+          MemoryDocumentStore(),
+        ).exportJson();
+
+        final ImportSummary summary = await service.importJson(
+          payload,
+          options: const ImportOptions(overwriteExisting: true),
+        );
+
+        expect(summary.overwritten, 1);
+        final Unit? after = await units.getById(cow.id);
+        expect(after!.description, isNull);
+        expect(after.stability, isNull);
+        expect(after.lastReview, isNull);
+      } finally {
+        await source.close();
+      }
+    });
+  });
+
   group('documents', () {
     test('rules and notes are replaced only when asked', () async {
       await docs.write(DocumentKind.rules, 'old rules');
@@ -253,6 +372,36 @@ void main() {
       expect(await docs.read(DocumentKind.rules), 'new rules');
       expect(await docs.read(DocumentKind.notes), 'new notes');
     });
+
+    test(
+      'oversized documents are rejected before anything is written',
+      () async {
+        await units.add(text: 'Cow');
+        final Map<String, dynamic> doc =
+            jsonDecode(await service.exportJson()) as Map<String, dynamic>;
+
+        doc['rules'] = 'x' * (rulesLimit + 1);
+        await expectLater(
+          service.importJson(
+            jsonEncode(doc),
+            options: const ImportOptions(replaceDocs: true),
+          ),
+          throwsA(isA<ExportFormatException>()),
+        );
+        expect(await docs.read(DocumentKind.rules), isEmpty);
+
+        // The exact limit is accepted.
+        doc['rules'] = 'y' * rulesLimit;
+        doc['notes'] = 'z' * notesLimit;
+        final ImportSummary summary = await service.importJson(
+          jsonEncode(doc),
+          options: const ImportOptions(replaceDocs: true),
+        );
+        expect(summary.docsReplaced, isTrue);
+        expect(await docs.read(DocumentKind.rules), 'y' * rulesLimit);
+        expect(await docs.read(DocumentKind.notes), 'z' * notesLimit);
+      },
+    );
   });
 
   group('invalid files', () {

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,9 +32,16 @@ class FakeShareService implements ShareService {
 class FakeFilePickerService implements FilePickerService {
   PickedJsonFile? nextFile;
   Object? nextError;
+  int jsonCalls = 0;
+  Completer<PickedJsonFile?>? gate;
 
   @override
   Future<PickedJsonFile?> pickJsonFile() async {
+    jsonCalls++;
+    final Completer<PickedJsonFile?>? blocker = gate;
+    if (blocker != null) {
+      return blocker.future;
+    }
     if (nextError != null) {
       throw nextError!;
     }
@@ -45,7 +54,7 @@ class FakeFilePickerService implements FilePickerService {
   }
 
   @override
-  Future<PickedDictionaryFile?> pickDictionaryFile() {
+  Future<List<String>?> pickDictionaryFiles() {
     throw UnimplementedError();
   }
 }
@@ -63,7 +72,14 @@ void main() {
   setUp(() {
     clock = FakeClock(initial);
     repo = FakeUnitRepository(clock: clock);
-    db = AppDatabase(NativeDatabase.memory());
+    // (T-20) Close streams synchronously so no drift timer stays pending;
+    // same pattern as `test/app_test.dart`.
+    db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
     docs = MemoryDocumentStore();
     share = FakeShareService();
     picker = FakeFilePickerService();
@@ -183,6 +199,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Could not read the file.'), findsOneWidget);
+    });
+
+    testWidgets('a double tap opens only one picker (A-15)', (
+      WidgetTester tester,
+    ) async {
+      picker.gate = Completer<PickedJsonFile?>();
+      await pumpSettings(tester);
+
+      await tester.ensureVisible(find.text('Import JSON'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Import JSON'));
+      await tester.pump();
+      await tester.tap(find.text('Import JSON'));
+      await tester.pump();
+
+      expect(picker.jsonCalls, 1);
+
+      picker.gate!.complete(null);
+      await tester.pumpAndSettle();
     });
 
     testWidgets('invalid file shows an error', (WidgetTester tester) async {
