@@ -78,13 +78,28 @@ List<LlmMessage> buildTranslateMessages(
 }
 
 /// In-memory translate cache for one app session (SPEC 5.5).
+///
+/// Keyed by the word, the sentence it was tapped in and the meaning
+/// language: the contextual meaning and the translation language both
+/// affect the result, so entries must not be shared across them.
 class TranslationCache {
-  final Map<String, TranslateResult> _entries = {};
+  final Map<(String, String, String), TranslateResult> _entries = {};
 
-  TranslateResult? get(String key) => _entries[key];
+  TranslateResult? get(
+    String wordKey,
+    String sentence,
+    String meaningLanguage,
+  ) {
+    return _entries[(wordKey, sentence, meaningLanguage)];
+  }
 
-  void set(String key, TranslateResult value) {
-    _entries[key] = value;
+  void set(
+    String wordKey,
+    String sentence,
+    String meaningLanguage,
+    TranslateResult value,
+  ) {
+    _entries[(wordKey, sentence, meaningLanguage)] = value;
   }
 }
 

@@ -62,6 +62,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   TranslateResult? _fetched;
   DictionaryEntry? _local;
   bool _loading = false;
+  bool _localLoaded = false;
   bool _offline = false;
   AppFailure? _error;
   bool _adding = false;
@@ -100,6 +101,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   Future<void> _load() async {
     setState(() {
       _loading = true;
+      _localLoaded = false;
       _offline = false;
       _error = null;
     });
@@ -109,6 +111,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     }
     setState(() {
       _local = local;
+      _localLoaded = true;
       if (local != null) {
         // The dictionary meaning is ready: show it at once, the
         // contextual line may follow from the LLM.
@@ -116,7 +119,14 @@ class _WordPopupState extends ConsumerState<WordPopup> {
       }
     });
     final TranslationCache cache = ref.read(translationCacheProvider);
-    final TranslateResult? cached = cache.get(widget.wordKey);
+    final String meaningLanguage = ref
+        .read(settingsRepositoryProvider)
+        .meaningLanguage;
+    final TranslateResult? cached = cache.get(
+      widget.wordKey,
+      widget.sentence,
+      meaningLanguage,
+    );
     if (cached != null) {
       setState(() {
         _fetched = cached;
@@ -151,11 +161,11 @@ class _WordPopupState extends ConsumerState<WordPopup> {
         buildTranslateMessages(
           widget.surface,
           widget.sentence,
-          meaningLanguage: ref.read(settingsRepositoryProvider).meaningLanguage,
+          meaningLanguage: meaningLanguage,
         ),
         validateTranslateJson,
       );
-      cache.set(widget.wordKey, result);
+      cache.set(widget.wordKey, widget.sentence, meaningLanguage, result);
       if (!mounted) {
         return;
       }
@@ -246,8 +256,12 @@ class _WordPopupState extends ConsumerState<WordPopup> {
   }
 
   /// Adds the word to the dictionary, optionally straight into Known.
+  ///
+  /// Ignored until the local dictionary lookup has finished: otherwise the
+  /// saved spelling would be the raw tapped surface ("COWS") instead of the
+  /// dictionary spelling ("cows") or the lemma.
   Future<void> _addOrMarkKnown({required bool known}) async {
-    if (_unit != null || _adding || _markingKnown) {
+    if (_unit != null || _adding || _markingKnown || !_localLoaded) {
       return;
     }
     setState(() {
@@ -381,6 +395,17 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                 ),
               ],
             ),
+            if (!_loading && _local?.transcription != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  _local!.transcription!,
+                  key: const Key('wordPopupTranscription'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             if (_loading)
               const Center(child: CircularProgressIndicator())
@@ -413,6 +438,17 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
+              for (int i = 0; i < (_local?.examples.length ?? 0) && i < 2; i++)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _local!.examples[i],
+                    key: ValueKey('wordPopupExample_$i'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
             ],
             const SizedBox(height: 12),
             if (_error != null && unit == null && !_offline)
@@ -438,7 +474,9 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                         )
                       : ElevatedButton(
                           key: const Key('wordPopupAddButton'),
-                          onPressed: _adding || _markingKnown ? null : _add,
+                          onPressed: _adding || _markingKnown || !_localLoaded
+                              ? null
+                              : _add,
                           child: _adding
                               ? const SizedBox(
                                   height: 20,
@@ -455,7 +493,11 @@ class _WordPopupState extends ConsumerState<WordPopup> {
             const SizedBox(height: 4),
             TextButton.icon(
               key: const Key('wordPopupMarkKnownButton'),
-              onPressed: wordKnown || _adding || _markingKnown
+              onPressed:
+                  wordKnown ||
+                      _adding ||
+                      _markingKnown ||
+                      (unit == null && !_localLoaded)
                   ? null
                   : _markKnown,
               icon: _markingKnown

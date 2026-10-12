@@ -13,6 +13,9 @@ const String dictionaryAssetPath = 'assets/dictionary/en_ru.sqlite3';
 /// installed apps replace their stale copy (SPEC 5.11).
 const int dictionaryAssetVersion = 3;
 
+/// Number of entries in the bundled dictionary (shown in Settings).
+const int bundledDictionaryWordCount = 129797;
+
 /// Loads the bundled dictionary bytes (testable seam).
 abstract class DictionaryAssetLoader {
   Future<ByteData> load();

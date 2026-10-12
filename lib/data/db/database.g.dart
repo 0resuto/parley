@@ -1798,6 +1798,35 @@ class $DictionariesTable extends Dictionaries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _formatMeta = const VerificationMeta('format');
+  @override
+  late final GeneratedColumn<String> format = GeneratedColumn<String>(
+    'format',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetLangMeta = const VerificationMeta(
+    'targetLang',
+  );
+  @override
+  late final GeneratedColumn<String> targetLang = GeneratedColumn<String>(
+    'target_lang',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _enabledMeta = const VerificationMeta(
     'enabled',
   );
@@ -1824,12 +1853,12 @@ class $DictionariesTable extends Dictionaries
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _entryCountMeta = const VerificationMeta(
-    'entryCount',
+  static const VerificationMeta _wordCountMeta = const VerificationMeta(
+    'wordCount',
   );
   @override
-  late final GeneratedColumn<int> entryCount = GeneratedColumn<int>(
-    'entry_count',
+  late final GeneratedColumn<int> wordCount = GeneratedColumn<int>(
+    'word_count',
     aliasedName,
     false,
     type: DriftSqlType.int,
@@ -1850,9 +1879,12 @@ class $DictionariesTable extends Dictionaries
   List<GeneratedColumn> get $columns => [
     id,
     name,
+    format,
+    path,
+    targetLang,
     enabled,
     position,
-    entryCount,
+    wordCount,
     importedAt,
   ];
   @override
@@ -1878,6 +1910,30 @@ class $DictionariesTable extends Dictionaries
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
+    if (data.containsKey('format')) {
+      context.handle(
+        _formatMeta,
+        format.isAcceptableOrUnknown(data['format']!, _formatMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_formatMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('target_lang')) {
+      context.handle(
+        _targetLangMeta,
+        targetLang.isAcceptableOrUnknown(data['target_lang']!, _targetLangMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetLangMeta);
+    }
     if (data.containsKey('enabled')) {
       context.handle(
         _enabledMeta,
@@ -1892,13 +1948,13 @@ class $DictionariesTable extends Dictionaries
     } else if (isInserting) {
       context.missing(_positionMeta);
     }
-    if (data.containsKey('entry_count')) {
+    if (data.containsKey('word_count')) {
       context.handle(
-        _entryCountMeta,
-        entryCount.isAcceptableOrUnknown(data['entry_count']!, _entryCountMeta),
+        _wordCountMeta,
+        wordCount.isAcceptableOrUnknown(data['word_count']!, _wordCountMeta),
       );
     } else if (isInserting) {
-      context.missing(_entryCountMeta);
+      context.missing(_wordCountMeta);
     }
     if (data.containsKey('imported_at')) {
       context.handle(
@@ -1925,6 +1981,18 @@ class $DictionariesTable extends Dictionaries
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      format: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}format'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      targetLang: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_lang'],
+      )!,
       enabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}enabled'],
@@ -1933,9 +2001,9 @@ class $DictionariesTable extends Dictionaries
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
-      entryCount: attachedDatabase.typeMapping.read(
+      wordCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}entry_count'],
+        data['${effectivePrefix}word_count'],
       )!,
       importedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -1954,16 +2022,22 @@ class UserDictionaryRow extends DataClass
     implements Insertable<UserDictionaryRow> {
   final int id;
   final String name;
+  final String format;
+  final String path;
+  final String targetLang;
   final bool enabled;
   final int position;
-  final int entryCount;
+  final int wordCount;
   final DateTime importedAt;
   const UserDictionaryRow({
     required this.id,
     required this.name,
+    required this.format,
+    required this.path,
+    required this.targetLang,
     required this.enabled,
     required this.position,
-    required this.entryCount,
+    required this.wordCount,
     required this.importedAt,
   });
   @override
@@ -1971,9 +2045,12 @@ class UserDictionaryRow extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
+    map['format'] = Variable<String>(format);
+    map['path'] = Variable<String>(path);
+    map['target_lang'] = Variable<String>(targetLang);
     map['enabled'] = Variable<bool>(enabled);
     map['position'] = Variable<int>(position);
-    map['entry_count'] = Variable<int>(entryCount);
+    map['word_count'] = Variable<int>(wordCount);
     map['imported_at'] = Variable<DateTime>(importedAt);
     return map;
   }
@@ -1982,9 +2059,12 @@ class UserDictionaryRow extends DataClass
     return DictionariesCompanion(
       id: Value(id),
       name: Value(name),
+      format: Value(format),
+      path: Value(path),
+      targetLang: Value(targetLang),
       enabled: Value(enabled),
       position: Value(position),
-      entryCount: Value(entryCount),
+      wordCount: Value(wordCount),
       importedAt: Value(importedAt),
     );
   }
@@ -1997,9 +2077,12 @@ class UserDictionaryRow extends DataClass
     return UserDictionaryRow(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      format: serializer.fromJson<String>(json['format']),
+      path: serializer.fromJson<String>(json['path']),
+      targetLang: serializer.fromJson<String>(json['targetLang']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       position: serializer.fromJson<int>(json['position']),
-      entryCount: serializer.fromJson<int>(json['entryCount']),
+      wordCount: serializer.fromJson<int>(json['wordCount']),
       importedAt: serializer.fromJson<DateTime>(json['importedAt']),
     );
   }
@@ -2009,9 +2092,12 @@ class UserDictionaryRow extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
+      'format': serializer.toJson<String>(format),
+      'path': serializer.toJson<String>(path),
+      'targetLang': serializer.toJson<String>(targetLang),
       'enabled': serializer.toJson<bool>(enabled),
       'position': serializer.toJson<int>(position),
-      'entryCount': serializer.toJson<int>(entryCount),
+      'wordCount': serializer.toJson<int>(wordCount),
       'importedAt': serializer.toJson<DateTime>(importedAt),
     };
   }
@@ -2019,27 +2105,36 @@ class UserDictionaryRow extends DataClass
   UserDictionaryRow copyWith({
     int? id,
     String? name,
+    String? format,
+    String? path,
+    String? targetLang,
     bool? enabled,
     int? position,
-    int? entryCount,
+    int? wordCount,
     DateTime? importedAt,
   }) => UserDictionaryRow(
     id: id ?? this.id,
     name: name ?? this.name,
+    format: format ?? this.format,
+    path: path ?? this.path,
+    targetLang: targetLang ?? this.targetLang,
     enabled: enabled ?? this.enabled,
     position: position ?? this.position,
-    entryCount: entryCount ?? this.entryCount,
+    wordCount: wordCount ?? this.wordCount,
     importedAt: importedAt ?? this.importedAt,
   );
   UserDictionaryRow copyWithCompanion(DictionariesCompanion data) {
     return UserDictionaryRow(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      format: data.format.present ? data.format.value : this.format,
+      path: data.path.present ? data.path.value : this.path,
+      targetLang: data.targetLang.present
+          ? data.targetLang.value
+          : this.targetLang,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       position: data.position.present ? data.position.value : this.position,
-      entryCount: data.entryCount.present
-          ? data.entryCount.value
-          : this.entryCount,
+      wordCount: data.wordCount.present ? data.wordCount.value : this.wordCount,
       importedAt: data.importedAt.present
           ? data.importedAt.value
           : this.importedAt,
@@ -2051,69 +2146,102 @@ class UserDictionaryRow extends DataClass
     return (StringBuffer('UserDictionaryRow(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('format: $format, ')
+          ..write('path: $path, ')
+          ..write('targetLang: $targetLang, ')
           ..write('enabled: $enabled, ')
           ..write('position: $position, ')
-          ..write('entryCount: $entryCount, ')
+          ..write('wordCount: $wordCount, ')
           ..write('importedAt: $importedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, enabled, position, entryCount, importedAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    format,
+    path,
+    targetLang,
+    enabled,
+    position,
+    wordCount,
+    importedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is UserDictionaryRow &&
           other.id == this.id &&
           other.name == this.name &&
+          other.format == this.format &&
+          other.path == this.path &&
+          other.targetLang == this.targetLang &&
           other.enabled == this.enabled &&
           other.position == this.position &&
-          other.entryCount == this.entryCount &&
+          other.wordCount == this.wordCount &&
           other.importedAt == this.importedAt);
 }
 
 class DictionariesCompanion extends UpdateCompanion<UserDictionaryRow> {
   final Value<int> id;
   final Value<String> name;
+  final Value<String> format;
+  final Value<String> path;
+  final Value<String> targetLang;
   final Value<bool> enabled;
   final Value<int> position;
-  final Value<int> entryCount;
+  final Value<int> wordCount;
   final Value<DateTime> importedAt;
   const DictionariesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.format = const Value.absent(),
+    this.path = const Value.absent(),
+    this.targetLang = const Value.absent(),
     this.enabled = const Value.absent(),
     this.position = const Value.absent(),
-    this.entryCount = const Value.absent(),
+    this.wordCount = const Value.absent(),
     this.importedAt = const Value.absent(),
   });
   DictionariesCompanion.insert({
     this.id = const Value.absent(),
     required String name,
+    required String format,
+    required String path,
+    required String targetLang,
     this.enabled = const Value.absent(),
     required int position,
-    required int entryCount,
+    required int wordCount,
     required DateTime importedAt,
   }) : name = Value(name),
+       format = Value(format),
+       path = Value(path),
+       targetLang = Value(targetLang),
        position = Value(position),
-       entryCount = Value(entryCount),
+       wordCount = Value(wordCount),
        importedAt = Value(importedAt);
   static Insertable<UserDictionaryRow> custom({
     Expression<int>? id,
     Expression<String>? name,
+    Expression<String>? format,
+    Expression<String>? path,
+    Expression<String>? targetLang,
     Expression<bool>? enabled,
     Expression<int>? position,
-    Expression<int>? entryCount,
+    Expression<int>? wordCount,
     Expression<DateTime>? importedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (format != null) 'format': format,
+      if (path != null) 'path': path,
+      if (targetLang != null) 'target_lang': targetLang,
       if (enabled != null) 'enabled': enabled,
       if (position != null) 'position': position,
-      if (entryCount != null) 'entry_count': entryCount,
+      if (wordCount != null) 'word_count': wordCount,
       if (importedAt != null) 'imported_at': importedAt,
     });
   }
@@ -2121,17 +2249,23 @@ class DictionariesCompanion extends UpdateCompanion<UserDictionaryRow> {
   DictionariesCompanion copyWith({
     Value<int>? id,
     Value<String>? name,
+    Value<String>? format,
+    Value<String>? path,
+    Value<String>? targetLang,
     Value<bool>? enabled,
     Value<int>? position,
-    Value<int>? entryCount,
+    Value<int>? wordCount,
     Value<DateTime>? importedAt,
   }) {
     return DictionariesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      format: format ?? this.format,
+      path: path ?? this.path,
+      targetLang: targetLang ?? this.targetLang,
       enabled: enabled ?? this.enabled,
       position: position ?? this.position,
-      entryCount: entryCount ?? this.entryCount,
+      wordCount: wordCount ?? this.wordCount,
       importedAt: importedAt ?? this.importedAt,
     );
   }
@@ -2145,14 +2279,23 @@ class DictionariesCompanion extends UpdateCompanion<UserDictionaryRow> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
+    if (format.present) {
+      map['format'] = Variable<String>(format.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (targetLang.present) {
+      map['target_lang'] = Variable<String>(targetLang.value);
+    }
     if (enabled.present) {
       map['enabled'] = Variable<bool>(enabled.value);
     }
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
-    if (entryCount.present) {
-      map['entry_count'] = Variable<int>(entryCount.value);
+    if (wordCount.present) {
+      map['word_count'] = Variable<int>(wordCount.value);
     }
     if (importedAt.present) {
       map['imported_at'] = Variable<DateTime>(importedAt.value);
@@ -2165,333 +2308,13 @@ class DictionariesCompanion extends UpdateCompanion<UserDictionaryRow> {
     return (StringBuffer('DictionariesCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('format: $format, ')
+          ..write('path: $path, ')
+          ..write('targetLang: $targetLang, ')
           ..write('enabled: $enabled, ')
           ..write('position: $position, ')
-          ..write('entryCount: $entryCount, ')
+          ..write('wordCount: $wordCount, ')
           ..write('importedAt: $importedAt')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $DictionaryEntriesTable extends DictionaryEntries
-    with TableInfo<$DictionaryEntriesTable, DictionaryEntryRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $DictionaryEntriesTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _dictionaryIdMeta = const VerificationMeta(
-    'dictionaryId',
-  );
-  @override
-  late final GeneratedColumn<int> dictionaryId = GeneratedColumn<int>(
-    'dictionary_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES dictionaries (id) ON DELETE CASCADE',
-    ),
-  );
-  static const VerificationMeta _textKeyMeta = const VerificationMeta(
-    'textKey',
-  );
-  @override
-  late final GeneratedColumn<String> textKey = GeneratedColumn<String>(
-    'text_key',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _translationMeta = const VerificationMeta(
-    'translation',
-  );
-  @override
-  late final GeneratedColumn<String> translation = GeneratedColumn<String>(
-    'translation',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    dictionaryId,
-    textKey,
-    translation,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'dictionary_entries';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<DictionaryEntryRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('dictionary_id')) {
-      context.handle(
-        _dictionaryIdMeta,
-        dictionaryId.isAcceptableOrUnknown(
-          data['dictionary_id']!,
-          _dictionaryIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_dictionaryIdMeta);
-    }
-    if (data.containsKey('text_key')) {
-      context.handle(
-        _textKeyMeta,
-        textKey.isAcceptableOrUnknown(data['text_key']!, _textKeyMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_textKeyMeta);
-    }
-    if (data.containsKey('translation')) {
-      context.handle(
-        _translationMeta,
-        translation.isAcceptableOrUnknown(
-          data['translation']!,
-          _translationMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_translationMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  List<Set<GeneratedColumn>> get uniqueKeys => [
-    {dictionaryId, textKey},
-  ];
-  @override
-  DictionaryEntryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return DictionaryEntryRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      dictionaryId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}dictionary_id'],
-      )!,
-      textKey: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}text_key'],
-      )!,
-      translation: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}translation'],
-      )!,
-    );
-  }
-
-  @override
-  $DictionaryEntriesTable createAlias(String alias) {
-    return $DictionaryEntriesTable(attachedDatabase, alias);
-  }
-}
-
-class DictionaryEntryRow extends DataClass
-    implements Insertable<DictionaryEntryRow> {
-  final int id;
-  final int dictionaryId;
-  final String textKey;
-  final String translation;
-  const DictionaryEntryRow({
-    required this.id,
-    required this.dictionaryId,
-    required this.textKey,
-    required this.translation,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    map['dictionary_id'] = Variable<int>(dictionaryId);
-    map['text_key'] = Variable<String>(textKey);
-    map['translation'] = Variable<String>(translation);
-    return map;
-  }
-
-  DictionaryEntriesCompanion toCompanion(bool nullToAbsent) {
-    return DictionaryEntriesCompanion(
-      id: Value(id),
-      dictionaryId: Value(dictionaryId),
-      textKey: Value(textKey),
-      translation: Value(translation),
-    );
-  }
-
-  factory DictionaryEntryRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return DictionaryEntryRow(
-      id: serializer.fromJson<int>(json['id']),
-      dictionaryId: serializer.fromJson<int>(json['dictionaryId']),
-      textKey: serializer.fromJson<String>(json['textKey']),
-      translation: serializer.fromJson<String>(json['translation']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'dictionaryId': serializer.toJson<int>(dictionaryId),
-      'textKey': serializer.toJson<String>(textKey),
-      'translation': serializer.toJson<String>(translation),
-    };
-  }
-
-  DictionaryEntryRow copyWith({
-    int? id,
-    int? dictionaryId,
-    String? textKey,
-    String? translation,
-  }) => DictionaryEntryRow(
-    id: id ?? this.id,
-    dictionaryId: dictionaryId ?? this.dictionaryId,
-    textKey: textKey ?? this.textKey,
-    translation: translation ?? this.translation,
-  );
-  DictionaryEntryRow copyWithCompanion(DictionaryEntriesCompanion data) {
-    return DictionaryEntryRow(
-      id: data.id.present ? data.id.value : this.id,
-      dictionaryId: data.dictionaryId.present
-          ? data.dictionaryId.value
-          : this.dictionaryId,
-      textKey: data.textKey.present ? data.textKey.value : this.textKey,
-      translation: data.translation.present
-          ? data.translation.value
-          : this.translation,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('DictionaryEntryRow(')
-          ..write('id: $id, ')
-          ..write('dictionaryId: $dictionaryId, ')
-          ..write('textKey: $textKey, ')
-          ..write('translation: $translation')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(id, dictionaryId, textKey, translation);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is DictionaryEntryRow &&
-          other.id == this.id &&
-          other.dictionaryId == this.dictionaryId &&
-          other.textKey == this.textKey &&
-          other.translation == this.translation);
-}
-
-class DictionaryEntriesCompanion extends UpdateCompanion<DictionaryEntryRow> {
-  final Value<int> id;
-  final Value<int> dictionaryId;
-  final Value<String> textKey;
-  final Value<String> translation;
-  const DictionaryEntriesCompanion({
-    this.id = const Value.absent(),
-    this.dictionaryId = const Value.absent(),
-    this.textKey = const Value.absent(),
-    this.translation = const Value.absent(),
-  });
-  DictionaryEntriesCompanion.insert({
-    this.id = const Value.absent(),
-    required int dictionaryId,
-    required String textKey,
-    required String translation,
-  }) : dictionaryId = Value(dictionaryId),
-       textKey = Value(textKey),
-       translation = Value(translation);
-  static Insertable<DictionaryEntryRow> custom({
-    Expression<int>? id,
-    Expression<int>? dictionaryId,
-    Expression<String>? textKey,
-    Expression<String>? translation,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (dictionaryId != null) 'dictionary_id': dictionaryId,
-      if (textKey != null) 'text_key': textKey,
-      if (translation != null) 'translation': translation,
-    });
-  }
-
-  DictionaryEntriesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? dictionaryId,
-    Value<String>? textKey,
-    Value<String>? translation,
-  }) {
-    return DictionaryEntriesCompanion(
-      id: id ?? this.id,
-      dictionaryId: dictionaryId ?? this.dictionaryId,
-      textKey: textKey ?? this.textKey,
-      translation: translation ?? this.translation,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (dictionaryId.present) {
-      map['dictionary_id'] = Variable<int>(dictionaryId.value);
-    }
-    if (textKey.present) {
-      map['text_key'] = Variable<String>(textKey.value);
-    }
-    if (translation.present) {
-      map['translation'] = Variable<String>(translation.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('DictionaryEntriesCompanion(')
-          ..write('id: $id, ')
-          ..write('dictionaryId: $dictionaryId, ')
-          ..write('textKey: $textKey, ')
-          ..write('translation: $translation')
           ..write(')'))
         .toString();
   }
@@ -2505,8 +2328,26 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $MessagesTable messages = $MessagesTable(this);
   late final $DictionariesTable dictionaries = $DictionariesTable(this);
-  late final $DictionaryEntriesTable dictionaryEntries =
-      $DictionaryEntriesTable(this);
+  late final Index unitsDue = Index(
+    'units_due',
+    'CREATE INDEX units_due ON units (due)',
+  );
+  late final Index reviewsUnitId = Index(
+    'reviews_unit_id',
+    'CREATE INDEX reviews_unit_id ON reviews (unit_id)',
+  );
+  late final Index messagesConversationId = Index(
+    'messages_conversation_id',
+    'CREATE INDEX messages_conversation_id ON messages (conversation_id)',
+  );
+  late final Index dictionariesLookup = Index(
+    'dictionaries_lookup',
+    'CREATE INDEX dictionaries_lookup ON dictionaries (target_lang, enabled, position)',
+  );
+  late final Index dictionariesPath = Index(
+    'dictionaries_path',
+    'CREATE UNIQUE INDEX dictionaries_path ON dictionaries (path)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2517,7 +2358,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     conversations,
     messages,
     dictionaries,
-    dictionaryEntries,
+    unitsDue,
+    reviewsUnitId,
+    messagesConversationId,
+    dictionariesLookup,
+    dictionariesPath,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2534,13 +2379,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('messages', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
-        'dictionaries',
-        limitUpdateKind: UpdateKind.delete,
-      ),
-      result: [TableUpdate('dictionary_entries', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -2925,8 +2763,10 @@ class $$UnitsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$UnitsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$UnitsTable, Unit>(table),
+                  $$UnitsTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback: ({reviewsRefs = false}) {
@@ -3219,7 +3059,7 @@ class $$ReviewsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ReviewsTable, Review>(table),
                   $$ReviewsTableReferences(db, table, e),
                 ),
               )
@@ -3511,7 +3351,7 @@ class $$ConversationsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ConversationsTable, Conversation>(table),
                   $$ConversationsTableReferences(db, table, e),
                 ),
               )
@@ -3835,7 +3675,7 @@ class $$MessagesTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$MessagesTable, Message>(table),
                   $$MessagesTableReferences(db, table, e),
                 ),
               )
@@ -3903,47 +3743,26 @@ typedef $$DictionariesTableCreateCompanionBuilder =
     DictionariesCompanion Function({
       Value<int> id,
       required String name,
+      required String format,
+      required String path,
+      required String targetLang,
       Value<bool> enabled,
       required int position,
-      required int entryCount,
+      required int wordCount,
       required DateTime importedAt,
     });
 typedef $$DictionariesTableUpdateCompanionBuilder =
     DictionariesCompanion Function({
       Value<int> id,
       Value<String> name,
+      Value<String> format,
+      Value<String> path,
+      Value<String> targetLang,
       Value<bool> enabled,
       Value<int> position,
-      Value<int> entryCount,
+      Value<int> wordCount,
       Value<DateTime> importedAt,
     });
-
-final class $$DictionariesTableReferences
-    extends
-        BaseReferences<_$AppDatabase, $DictionariesTable, UserDictionaryRow> {
-  $$DictionariesTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static MultiTypedResultKey<$DictionaryEntriesTable, List<DictionaryEntryRow>>
-  _dictionaryEntriesRefsTable(_$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.dictionaryEntries,
-        aliasName: 'dictionaries__id__dictionary_entries__dictionary_id',
-      );
-
-  $$DictionaryEntriesTableProcessedTableManager get dictionaryEntriesRefs {
-    final manager = $$DictionaryEntriesTableTableManager(
-      $_db,
-      $_db.dictionaryEntries,
-    ).filter((f) => f.dictionaryId.id.sqlEquals($_itemColumn<int>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _dictionaryEntriesRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
 
 class $$DictionariesTableFilterComposer
     extends Composer<_$AppDatabase, $DictionariesTable> {
@@ -3964,6 +3783,21 @@ class $$DictionariesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get format => $composableBuilder(
+    column: $table.format,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnFilters(column),
@@ -3974,8 +3808,8 @@ class $$DictionariesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get entryCount => $composableBuilder(
-    column: $table.entryCount,
+  ColumnFilters<int> get wordCount => $composableBuilder(
+    column: $table.wordCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3983,31 +3817,6 @@ class $$DictionariesTableFilterComposer
     column: $table.importedAt,
     builder: (column) => ColumnFilters(column),
   );
-
-  Expression<bool> dictionaryEntriesRefs(
-    Expression<bool> Function($$DictionaryEntriesTableFilterComposer f) f,
-  ) {
-    final $$DictionaryEntriesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.dictionaryEntries,
-      getReferencedColumn: (t) => t.dictionaryId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DictionaryEntriesTableFilterComposer(
-            $db: $db,
-            $table: $db.dictionaryEntries,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$DictionariesTableOrderingComposer
@@ -4029,6 +3838,21 @@ class $$DictionariesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get format => $composableBuilder(
+    column: $table.format,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get enabled => $composableBuilder(
     column: $table.enabled,
     builder: (column) => ColumnOrderings(column),
@@ -4039,8 +3863,8 @@ class $$DictionariesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get entryCount => $composableBuilder(
-    column: $table.entryCount,
+  ColumnOrderings<int> get wordCount => $composableBuilder(
+    column: $table.wordCount,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4065,47 +3889,30 @@ class $$DictionariesTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
+  GeneratedColumn<String> get format =>
+      $composableBuilder(column: $table.format, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => column);
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
 
-  GeneratedColumn<int> get entryCount => $composableBuilder(
-    column: $table.entryCount,
-    builder: (column) => column,
-  );
+  GeneratedColumn<int> get wordCount =>
+      $composableBuilder(column: $table.wordCount, builder: (column) => column);
 
   GeneratedColumn<DateTime> get importedAt => $composableBuilder(
     column: $table.importedAt,
     builder: (column) => column,
   );
-
-  Expression<T> dictionaryEntriesRefs<T extends Object>(
-    Expression<T> Function($$DictionaryEntriesTableAnnotationComposer a) f,
-  ) {
-    final $$DictionaryEntriesTableAnnotationComposer composer =
-        $composerBuilder(
-          composer: this,
-          getCurrentColumn: (t) => t.id,
-          referencedTable: $db.dictionaryEntries,
-          getReferencedColumn: (t) => t.dictionaryId,
-          builder:
-              (
-                joinBuilder, {
-                $addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer,
-              }) => $$DictionaryEntriesTableAnnotationComposer(
-                $db: $db,
-                $table: $db.dictionaryEntries,
-                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                joinBuilder: joinBuilder,
-                $removeJoinBuilderFromRootComposer:
-                    $removeJoinBuilderFromRootComposer,
-              ),
-        );
-    return f(composer);
-  }
 }
 
 class $$DictionariesTableTableManager
@@ -4119,9 +3926,16 @@ class $$DictionariesTableTableManager
           $$DictionariesTableAnnotationComposer,
           $$DictionariesTableCreateCompanionBuilder,
           $$DictionariesTableUpdateCompanionBuilder,
-          (UserDictionaryRow, $$DictionariesTableReferences),
+          (
+            UserDictionaryRow,
+            BaseReferences<
+              _$AppDatabase,
+              $DictionariesTable,
+              UserDictionaryRow
+            >,
+          ),
           UserDictionaryRow,
-          PrefetchHooks Function({bool dictionaryEntriesRefs})
+          PrefetchHooks Function()
         > {
   $$DictionariesTableTableManager(_$AppDatabase db, $DictionariesTable table)
     : super(
@@ -4138,76 +3952,59 @@ class $$DictionariesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String> format = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> targetLang = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<int> position = const Value.absent(),
-                Value<int> entryCount = const Value.absent(),
+                Value<int> wordCount = const Value.absent(),
                 Value<DateTime> importedAt = const Value.absent(),
               }) => DictionariesCompanion(
                 id: id,
                 name: name,
+                format: format,
+                path: path,
+                targetLang: targetLang,
                 enabled: enabled,
                 position: position,
-                entryCount: entryCount,
+                wordCount: wordCount,
                 importedAt: importedAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
                 required String name,
+                required String format,
+                required String path,
+                required String targetLang,
                 Value<bool> enabled = const Value.absent(),
                 required int position,
-                required int entryCount,
+                required int wordCount,
                 required DateTime importedAt,
               }) => DictionariesCompanion.insert(
                 id: id,
                 name: name,
+                format: format,
+                path: path,
+                targetLang: targetLang,
                 enabled: enabled,
                 position: position,
-                entryCount: entryCount,
+                wordCount: wordCount,
                 importedAt: importedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
-                  $$DictionariesTableReferences(db, table, e),
+                  e.readTable<$DictionariesTable, UserDictionaryRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DictionariesTable,
+                    UserDictionaryRow
+                  >(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({dictionaryEntriesRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (dictionaryEntriesRefs) db.dictionaryEntries,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (dictionaryEntriesRefs)
-                    await $_getPrefetchedData<
-                      UserDictionaryRow,
-                      $DictionariesTable,
-                      DictionaryEntryRow
-                    >(
-                      currentTable: table,
-                      referencedTable: $$DictionariesTableReferences
-                          ._dictionaryEntriesRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$DictionariesTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).dictionaryEntriesRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where(
-                            (e) => e.dictionaryId == item.id,
-                          ),
-                      typedResults: items,
-                    ),
-                ];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -4222,320 +4019,12 @@ typedef $$DictionariesTableProcessedTableManager =
       $$DictionariesTableAnnotationComposer,
       $$DictionariesTableCreateCompanionBuilder,
       $$DictionariesTableUpdateCompanionBuilder,
-      (UserDictionaryRow, $$DictionariesTableReferences),
+      (
+        UserDictionaryRow,
+        BaseReferences<_$AppDatabase, $DictionariesTable, UserDictionaryRow>,
+      ),
       UserDictionaryRow,
-      PrefetchHooks Function({bool dictionaryEntriesRefs})
-    >;
-typedef $$DictionaryEntriesTableCreateCompanionBuilder =
-    DictionaryEntriesCompanion Function({
-      Value<int> id,
-      required int dictionaryId,
-      required String textKey,
-      required String translation,
-    });
-typedef $$DictionaryEntriesTableUpdateCompanionBuilder =
-    DictionaryEntriesCompanion Function({
-      Value<int> id,
-      Value<int> dictionaryId,
-      Value<String> textKey,
-      Value<String> translation,
-    });
-
-final class $$DictionaryEntriesTableReferences
-    extends
-        BaseReferences<
-          _$AppDatabase,
-          $DictionaryEntriesTable,
-          DictionaryEntryRow
-        > {
-  $$DictionaryEntriesTableReferences(
-    super.$_db,
-    super.$_table,
-    super.$_typedResult,
-  );
-
-  static $DictionariesTable _dictionaryIdTable(_$AppDatabase db) => db
-      .dictionaries
-      .createAlias('dictionary_entries__dictionary_id__dictionaries__id');
-
-  $$DictionariesTableProcessedTableManager get dictionaryId {
-    final $_column = $_itemColumn<int>('dictionary_id')!;
-
-    final manager = $$DictionariesTableTableManager(
-      $_db,
-      $_db.dictionaries,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_dictionaryIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-}
-
-class $$DictionaryEntriesTableFilterComposer
-    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
-  $$DictionaryEntriesTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get textKey => $composableBuilder(
-    column: $table.textKey,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get translation => $composableBuilder(
-    column: $table.translation,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$DictionariesTableFilterComposer get dictionaryId {
-    final $$DictionariesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dictionaryId,
-      referencedTable: $db.dictionaries,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DictionariesTableFilterComposer(
-            $db: $db,
-            $table: $db.dictionaries,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$DictionaryEntriesTableOrderingComposer
-    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
-  $$DictionaryEntriesTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get textKey => $composableBuilder(
-    column: $table.textKey,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get translation => $composableBuilder(
-    column: $table.translation,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$DictionariesTableOrderingComposer get dictionaryId {
-    final $$DictionariesTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dictionaryId,
-      referencedTable: $db.dictionaries,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DictionariesTableOrderingComposer(
-            $db: $db,
-            $table: $db.dictionaries,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$DictionaryEntriesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $DictionaryEntriesTable> {
-  $$DictionaryEntriesTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get textKey =>
-      $composableBuilder(column: $table.textKey, builder: (column) => column);
-
-  GeneratedColumn<String> get translation => $composableBuilder(
-    column: $table.translation,
-    builder: (column) => column,
-  );
-
-  $$DictionariesTableAnnotationComposer get dictionaryId {
-    final $$DictionariesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.dictionaryId,
-      referencedTable: $db.dictionaries,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DictionariesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.dictionaries,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$DictionaryEntriesTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $DictionaryEntriesTable,
-          DictionaryEntryRow,
-          $$DictionaryEntriesTableFilterComposer,
-          $$DictionaryEntriesTableOrderingComposer,
-          $$DictionaryEntriesTableAnnotationComposer,
-          $$DictionaryEntriesTableCreateCompanionBuilder,
-          $$DictionaryEntriesTableUpdateCompanionBuilder,
-          (DictionaryEntryRow, $$DictionaryEntriesTableReferences),
-          DictionaryEntryRow,
-          PrefetchHooks Function({bool dictionaryId})
-        > {
-  $$DictionaryEntriesTableTableManager(
-    _$AppDatabase db,
-    $DictionaryEntriesTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$DictionaryEntriesTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$DictionaryEntriesTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$DictionaryEntriesTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> dictionaryId = const Value.absent(),
-                Value<String> textKey = const Value.absent(),
-                Value<String> translation = const Value.absent(),
-              }) => DictionaryEntriesCompanion(
-                id: id,
-                dictionaryId: dictionaryId,
-                textKey: textKey,
-                translation: translation,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int dictionaryId,
-                required String textKey,
-                required String translation,
-              }) => DictionaryEntriesCompanion.insert(
-                id: id,
-                dictionaryId: dictionaryId,
-                textKey: textKey,
-                translation: translation,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$DictionaryEntriesTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback: ({dictionaryId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (dictionaryId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.dictionaryId,
-                                referencedTable:
-                                    $$DictionaryEntriesTableReferences
-                                        ._dictionaryIdTable(db),
-                                referencedColumn:
-                                    $$DictionaryEntriesTableReferences
-                                        ._dictionaryIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
-
-                    return state;
-                  },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
-        ),
-      );
-}
-
-typedef $$DictionaryEntriesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $DictionaryEntriesTable,
-      DictionaryEntryRow,
-      $$DictionaryEntriesTableFilterComposer,
-      $$DictionaryEntriesTableOrderingComposer,
-      $$DictionaryEntriesTableAnnotationComposer,
-      $$DictionaryEntriesTableCreateCompanionBuilder,
-      $$DictionaryEntriesTableUpdateCompanionBuilder,
-      (DictionaryEntryRow, $$DictionaryEntriesTableReferences),
-      DictionaryEntryRow,
-      PrefetchHooks Function({bool dictionaryId})
+      PrefetchHooks Function()
     >;
 
 class $AppDatabaseManager {
@@ -4551,6 +4040,4 @@ class $AppDatabaseManager {
       $$MessagesTableTableManager(_db, _db.messages);
   $$DictionariesTableTableManager get dictionaries =>
       $$DictionariesTableTableManager(_db, _db.dictionaries);
-  $$DictionaryEntriesTableTableManager get dictionaryEntries =>
-      $$DictionaryEntriesTableTableManager(_db, _db.dictionaryEntries);
 }

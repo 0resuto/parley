@@ -1,15 +1,14 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' show QueryExecutor;
-import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:parley/data/models/unit.dart';
+import 'package:parley/core/clock.dart';
 import 'package:parley/data/repositories/user_dictionary_repository.dart';
-import 'package:parley/services/dictionary/dictionary_service.dart';
-import 'package:parley/services/export/file_picker_service.dart';
+import 'package:parley/services/dictionary/dictionary_file_store.dart';
+import 'package:parley/services/dictionary/import/import_runner.dart';
+import 'package:parley/services/dictionary/import/import_worker.dart';
 
-/// Raised when a picked file is not a usable dictionary (SPEC 5.12).
+/// Raised when the picked files are not a usable dictionary.
 class DictionaryImportException implements Exception {
   const DictionaryImportException(this.message);
 
@@ -19,140 +18,134 @@ class DictionaryImportException implements Exception {
   String toString() => message;
 }
 
-/// Result of importing one dictionary file.
-class DictionaryImportSummary {
-  const DictionaryImportSummary({required this.name, required this.entryCount});
-
-  final String name;
-  final int entryCount;
+/// Raised when the user cancelled a running import.
+class DictionaryImportCancelledException implements Exception {
+  const DictionaryImportCancelledException();
 }
 
-/// Upper bound per imported dictionary (SPEC 5.12).
-///
-/// Protects the app from a stray huge file freezing the import; the importer
-/// refuses anything larger.
-const int maxDictionaryEntries = 500000;
+/// Result of importing one dictionary.
+class DictionaryImportSummary {
+  const DictionaryImportSummary({required this.name, required this.wordCount});
 
-/// Imports user dictionaries into the app database (SPEC 5.12).
+  final String name;
+  final int wordCount;
+}
+
+/// Import seam (SPEC 5.12); widget tests fake this.
+abstract class DictionaryImporter {
+  /// Validates and stores the dictionary described by [paths].
+  ///
+  /// [onProgress] reports the phases of the background job. Throws
+  /// [DictionaryImportException] for unusable selections and
+  /// [DictionaryImportCancelledException] after [cancelImport].
+  Future<DictionaryImportSummary> importFiles(
+    List<String> paths, {
+    required String targetLang,
+    void Function(DictionaryImportProgress)? onProgress,
+  });
+
+  /// Aborts the running import; the pending [importFiles] throws
+  /// [DictionaryImportCancelledException].
+  void cancelImport();
+}
+
+/// Orchestrates dictionary imports (SPEC 5.12).
 ///
-/// Accepts a CSV file (`word;translation`, the same shape as SPEC 4.6) or a
-/// SQLite file with an `entry(text_key, translation)` table (the shape of
-/// the bundled dictionary, so other dictionary tools' exports work too).
-class DictionaryImporter {
-  DictionaryImporter({required UserDictionaryRepository dictionaries})
-    : _dictionaries = dictionaries;
+/// The file work runs in a background isolate (via [DictionaryImportRunner]);
+/// this class prepares the destination directory, stores the metadata and
+/// cleans up after failures and cancellations.
+class FileDictionaryImporter implements DictionaryImporter {
+  FileDictionaryImporter({
+    required UserDictionaryRepository dictionaries,
+    required DictionaryFileStore files,
+    required Clock clock,
+    required DictionaryImportRunner runner,
+  }) : _dictionaries = dictionaries,
+       _files = files,
+       _clock = clock,
+       _runner = runner;
 
   final UserDictionaryRepository _dictionaries;
+  final DictionaryFileStore _files;
+  final Clock _clock;
+  final DictionaryImportRunner _runner;
 
-  /// Parses [file] and stores it as the lowest-priority dictionary.
-  ///
-  /// Throws [DictionaryImportException] for unusable files.
-  Future<DictionaryImportSummary> importFile(PickedDictionaryFile file) async {
-    final List<({String textKey, String translation})> entries = file.isSqlite
-        ? await _readSqlite(file.path)
-        : _readCsv(file.csvContent ?? '');
-    if (entries.isEmpty) {
+  @override
+  Future<DictionaryImportSummary> importFiles(
+    List<String> paths, {
+    required String targetLang,
+    void Function(DictionaryImportProgress)? onProgress,
+  }) async {
+    final String language = targetLang.trim().toLowerCase();
+    if (language.isEmpty) {
       throw const DictionaryImportException(
-        'The file has no dictionary entries.',
+        'Set the meaning language for the dictionary.',
       );
     }
-    final String base = p.basenameWithoutExtension(file.path).trim();
-    final String name = base.isEmpty ? 'Imported dictionary' : base;
-    await _dictionaries.importEntries(name: name, entries: entries);
-    return DictionaryImportSummary(name: name, entryCount: entries.length);
-  }
-
-  List<({String textKey, String translation})> _readCsv(String content) {
-    final String withoutBom = content.startsWith('\uFEFF')
-        ? content.substring(1)
-        : content;
-    final List<({String textKey, String translation})> entries = [];
-    final Set<String> seen = {};
-    bool isFirstLine = true;
-    for (final String rawLine in withoutBom.split(RegExp(r'\r\n|\r|\n'))) {
-      final String line = rawLine.trim();
-      if (isFirstLine) {
-        isFirstLine = false;
-        final String lower = line.toLowerCase();
-        if (lower == 'word;translation' || lower == 'text_key;translation') {
-          continue;
-        }
-      }
-      if (line.isEmpty) {
-        continue;
-      }
-      final List<String> parts = rawLine.split(';');
-      if (parts.length < 2) {
-        continue;
-      }
-      final String key = normalizeKey(parts.first);
-      final String translation = parts[1].trim();
-      if (key.isEmpty || translation.isEmpty || !seen.add(key)) {
-        continue;
-      }
-      entries.add((textKey: key, translation: translation));
+    if (paths.isEmpty) {
+      throw const DictionaryImportException('No files were selected.');
     }
-    return entries;
-  }
-
-  Future<List<({String textKey, String translation})>> _readSqlite(
-    String path,
-  ) async {
-    final File file = File(path);
-    if (!await file.exists()) {
-      throw const DictionaryImportException('The file could not be read.');
+    final Directory root = await _files.root();
+    await root.create(recursive: true);
+    final Directory destination = await _newDirectory(root);
+    final ImportOutcome outcome = await _runner.run(
+      ImportRequest(paths: paths, destinationDir: destination.path),
+      onProgress: onProgress,
+    );
+    if (outcome.kind == ImportOutcomeKind.cancelled) {
+      await _cleanup(destination);
+      throw const DictionaryImportCancelledException();
     }
-    final QueryExecutor executor = NativeDatabase(file);
+    if (outcome.kind == ImportOutcomeKind.failure) {
+      await _cleanup(destination);
+      throw DictionaryImportException(outcome.message ?? 'Import failed.');
+    }
     try {
-      await executor.ensureOpen(const DictionaryExecutorUser());
-      final List<Map<String, Object?>> tables = await executor.runSelect(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'entry'",
-        [],
+      await _dictionaries.add(
+        name: outcome.name!,
+        path: destination.path,
+        targetLang: language,
+        wordCount: outcome.wordCount!,
+        format: outcome.format!,
       );
-      if (tables.isEmpty) {
-        throw const DictionaryImportException("The file has no 'entry' table.");
-      }
-      final List<Map<String, Object?>> columns = await executor.runSelect(
-        'PRAGMA table_info(entry)',
-        [],
-      );
-      final Set<String> names = {
-        for (final Map<String, Object?> column in columns)
-          if (column['name'] is String) column['name']! as String,
-      };
-      if (!names.contains('text_key') || !names.contains('translation')) {
-        throw const DictionaryImportException(
-          "The 'entry' table needs text_key and translation columns.",
-        );
-      }
-      final List<Map<String, Object?>> rows = await executor.runSelect(
-        'SELECT text_key, translation FROM entry',
-        [],
-      );
-      if (rows.length > maxDictionaryEntries) {
-        throw const DictionaryImportException(
-          'The dictionary has too many entries '
-          '(the limit is $maxDictionaryEntries).',
-        );
-      }
-      final List<({String textKey, String translation})> entries = [];
-      final Set<String> seen = {};
-      for (final Map<String, Object?> row in rows) {
-        final Object? rawKey = row['text_key'];
-        final Object? rawTranslation = row['translation'];
-        if (rawKey is! String || rawTranslation is! String) {
-          continue;
+    } catch (_) {
+      await _cleanup(destination);
+      rethrow;
+    }
+    return DictionaryImportSummary(
+      name: outcome.name!,
+      wordCount: outcome.wordCount!,
+    );
+  }
+
+  @override
+  void cancelImport() => _runner.cancel();
+
+  Future<Directory> _newDirectory(Directory root) async {
+    final int stamp = _clock.now().millisecondsSinceEpoch;
+    Directory destination = Directory(p.join(root.path, '$stamp'));
+    int suffix = 1;
+    while (await destination.exists()) {
+      destination = Directory(p.join(root.path, '${stamp}_$suffix'));
+      suffix++;
+    }
+    await destination.create(recursive: true);
+    return destination;
+  }
+
+  Future<void> _cleanup(Directory destination) async {
+    for (final String path in [
+      destination.path,
+      '${destination.path}.extract',
+    ]) {
+      try {
+        final Directory directory = Directory(path);
+        if (await directory.exists()) {
+          await directory.delete(recursive: true);
         }
-        final String key = normalizeKey(rawKey);
-        final String translation = rawTranslation.trim();
-        if (key.isEmpty || translation.isEmpty || !seen.add(key)) {
-          continue;
-        }
-        entries.add((textKey: key, translation: translation));
+      } catch (_) {
+        // Best-effort cleanup; the import error is what matters.
       }
-      return entries;
-    } finally {
-      await executor.close();
     }
   }
 }

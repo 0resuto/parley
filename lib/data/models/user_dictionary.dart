@@ -1,11 +1,17 @@
 /// One imported user dictionary (SPEC 5.12).
+///
+/// Metadata only: the dictionary data stays in its original files under
+/// [path]; nothing is copied into the app database.
 class UserDictionary {
   const UserDictionary({
     required this.id,
     required this.name,
+    required this.format,
+    required this.path,
+    required this.targetLang,
     required this.enabled,
     required this.position,
-    required this.entryCount,
+    required this.wordCount,
     required this.importedAt,
   });
 
@@ -13,24 +19,23 @@ class UserDictionary {
 
   final String name;
 
+  /// Source format, e.g. `stardict`.
+  final String format;
+
+  /// Absolute directory holding the dictionary files.
+  final String path;
+
+  /// Language code meanings are translated into (matched against the
+  /// meaning language setting).
+  final String targetLang;
+
   /// Disabled dictionaries are skipped by lookups.
   final bool enabled;
 
   /// Priority: lower values are consulted first.
   final int position;
 
-  final int entryCount;
+  final int wordCount;
 
   final DateTime importedAt;
-
-  UserDictionary copyWith({bool? enabled}) {
-    return UserDictionary(
-      id: id,
-      name: name,
-      enabled: enabled ?? this.enabled,
-      position: position,
-      entryCount: entryCount,
-      importedAt: importedAt,
-    );
-  }
 }

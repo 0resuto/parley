@@ -6,21 +6,12 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(
-  tables: [
-    Units,
-    Reviews,
-    Conversations,
-    Messages,
-    Dictionaries,
-    DictionaryEntries,
-  ],
-)
+@DriftDatabase(tables: [Units, Reviews, Conversations, Messages, Dictionaries])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -35,9 +26,36 @@ class AppDatabase extends _$AppDatabase {
         await m.alterTable(TableMigration(units));
       }
       if (from < 3) {
-        // 19.2: user dictionaries live in the app database.
+        // 20.1: metadata-only dictionary rows (a v1/v2 database goes
+        // straight to the current shape).
         await m.createTable(dictionaries);
-        await m.createTable(dictionaryEntries);
+      }
+      if (from == 3) {
+        // 20.1: 19.2 stored dictionary entries in the app database; that
+        // feature never shipped, so the tables are recreated empty. The
+        // dictionary files themselves are imported again.
+        await customStatement('DROP TABLE IF EXISTS dictionary_entries');
+        await customStatement('DROP TABLE IF EXISTS dictionaries');
+        await m.createTable(dictionaries);
+      }
+      if (from < 5) {
+        // A-52: indexes for the hot queries. Runs after any table
+        // recreation above, so the indexes survive re-created tables.
+        await m.createIndex(unitsDue);
+        await m.createIndex(reviewsUnitId);
+        await m.createIndex(messagesConversationId);
+        await m.createIndex(dictionariesLookup);
+      }
+      if (from < 6) {
+        // A-55: one dictionary per path. A manually edited database could
+        // contain duplicates; it keeps working without the constraint
+        // instead of failing to open.
+        final List<QueryRow> duplicatePaths = await customSelect(
+          'SELECT path FROM dictionaries GROUP BY path HAVING COUNT(*) > 1',
+        ).get();
+        if (duplicatePaths.isEmpty) {
+          await m.createIndex(dictionariesPath);
+        }
       }
     },
     beforeOpen: (details) async {

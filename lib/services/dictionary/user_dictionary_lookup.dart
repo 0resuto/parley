@@ -5,10 +5,11 @@ import 'package:parley/services/dictionary/dictionary_service.dart';
 /// The meaning resolver consults user dictionaries before the bundled one.
 abstract class UserDictionaryLookup {
   /// The entry for [wordKey] from the highest-priority enabled user
-  /// dictionary, or null when no enabled dictionary contains the word.
+  /// dictionary whose target language is [targetLang], or null when no
+  /// such dictionary contains the word.
   ///
   /// [wordKey] is normalized internally, so any case/apostrophe form works.
-  Future<DictionaryEntry?> lookup(String wordKey);
+  Future<DictionaryEntry?> lookup(String wordKey, {required String targetLang});
 }
 
 /// Fallback used before any user dictionary exists: every lookup misses.
@@ -16,5 +17,8 @@ class EmptyUserDictionaryLookup implements UserDictionaryLookup {
   const EmptyUserDictionaryLookup();
 
   @override
-  Future<DictionaryEntry?> lookup(String wordKey) async => null;
+  Future<DictionaryEntry?> lookup(
+    String wordKey, {
+    required String targetLang,
+  }) async => null;
 }

@@ -7,8 +7,10 @@ import 'package:parley/data/repositories/unit_repository.dart';
 import 'package:parley/data/repositories/user_dictionary_repository.dart';
 import 'package:parley/features/chat/chat_controller.dart';
 import 'package:parley/features/settings/settings_providers.dart';
+import 'package:parley/services/dictionary/dictionary_file_store.dart';
 import 'package:parley/services/dictionary/dictionary_importer.dart';
 import 'package:parley/services/dictionary/dictionary_service.dart';
+import 'package:parley/services/dictionary/import/import_runner.dart';
 import 'package:parley/services/dictionary/meaning_resolver.dart';
 import 'package:parley/services/dictionary/user_dictionary_lookup.dart';
 
@@ -25,14 +27,24 @@ final unitRepositoryProvider = Provider<UnitRepository>((ref) {
   return UnitRepository(db, clock: clock);
 });
 
-/// Storage for imported user dictionaries (SPEC 5.12).
+/// Root directory of the imported dictionary files (SPEC 5.12).
+///
+/// Tests override this with a temporary directory.
+final dictionaryFileStoreProvider = Provider<DictionaryFileStore>((ref) {
+  return AppDocumentsDictionaryFileStore();
+});
+
+/// Metadata storage for imported user dictionaries (SPEC 5.12).
 final userDictionaryRepositoryProvider = Provider<UserDictionaryRepository>((
   ref,
 ) {
-  return UserDictionaryRepository(
+  final UserDictionaryRepository repository = UserDictionaryRepository(
     ref.watch(appDatabaseProvider),
     clock: ref.watch(clockProvider),
+    files: ref.watch(dictionaryFileStoreProvider),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 });
 
 /// The user-dictionary lookup seam used by the resolver (SPEC 5.12).
@@ -47,10 +59,18 @@ final userDictionariesProvider = StreamProvider<List<UserDictionary>>((ref) {
   return ref.watch(userDictionaryRepositoryProvider).watchAll();
 });
 
-/// Imports dictionary files into the app database (SPEC 5.12).
+/// Runs dictionary imports, by default in a background isolate (SPEC 5.12).
+final dictionaryImportRunnerProvider = Provider<DictionaryImportRunner>((ref) {
+  return IsolateImportRunner();
+});
+
+/// Imports dictionary files into the documents directory (SPEC 5.12).
 final dictionaryImporterProvider = Provider<DictionaryImporter>((ref) {
-  return DictionaryImporter(
+  return FileDictionaryImporter(
     dictionaries: ref.watch(userDictionaryRepositoryProvider),
+    files: ref.watch(dictionaryFileStoreProvider),
+    clock: ref.watch(clockProvider),
+    runner: ref.watch(dictionaryImportRunnerProvider),
   );
 });
 

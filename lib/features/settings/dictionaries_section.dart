@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import 'package:parley/data/models/user_dictionary.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/services/dictionary/dictionary_importer.dart';
-import 'package:parley/services/export/file_picker_service.dart';
+import 'package:parley/services/dictionary/dictionary_initializer.dart';
+import 'package:parley/services/dictionary/import/import_worker.dart';
 import 'settings_providers.dart';
 
 /// Settings -> Dictionaries (SPEC 5.12).
 ///
-/// Imports dictionary files, lists them highest priority first, and
-/// enables, reorders or removes them. The resolver consults enabled user
-/// dictionaries before the bundled one.
+/// Lists the bundled dictionary (fixed, lowest priority) and the imported
+/// StarDict dictionaries, highest priority first, and enables, reorders or
+/// removes them. The resolver consults enabled dictionaries whose target
+/// language matches the meaning language setting.
 class DictionariesSection extends ConsumerStatefulWidget {
   const DictionariesSection({super.key});
 
@@ -21,48 +24,105 @@ class DictionariesSection extends ConsumerStatefulWidget {
 }
 
 class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
+  /// Guards the import from a second start (A-15).
   bool _importing = false;
+
+  /// True only while the import job runs; drives the progress row (the
+  /// guard also covers the picker and the language dialog).
+  bool _working = false;
+  DictionaryImportProgress? _progress;
+
+  /// Invalidates progress callbacks of a finished import (A-49): a late
+  /// callback must not overwrite the next import's progress.
+  int _importToken = 0;
+
+  /// True while a switch or reorder write is in flight (A-49); the
+  /// controls are disabled so taps cannot interleave.
+  bool _updating = false;
+  final TextEditingController _languageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _languageController.dispose();
+    super.dispose();
+  }
 
   Future<void> _import() async {
     if (_importing) {
       return;
     }
-    final PickedDictionaryFile? picked;
-    try {
-      picked = await ref.read(filePickerServiceProvider).pickDictionaryFile();
-    } catch (_) {
-      if (mounted) {
-        _showMessage('Could not read the file.');
-      }
-      return;
-    }
-    if (picked == null || !mounted) {
-      return;
-    }
+    final int token = _importToken;
+    // Busy is set before the picker so a double tap cannot open two
+    // pickers or two language dialogs (A-15).
     setState(() {
       _importing = true;
+      _progress = null;
     });
+    bool pickFailed = false;
     DictionaryImportSummary? summary;
     String? invalidReason;
+    bool cancelled = false;
     bool failed = false;
     try {
-      summary = await ref.read(dictionaryImporterProvider).importFile(picked);
-    } on DictionaryImportException catch (e) {
-      invalidReason = e.message;
-    } catch (_) {
-      failed = true;
+      List<String>? paths;
+      try {
+        paths = await ref.read(filePickerServiceProvider).pickDictionaryFiles();
+      } catch (_) {
+        pickFailed = true;
+      }
+      if (!pickFailed && paths != null && paths.isNotEmpty && mounted) {
+        final String? language = await _askLanguage();
+        if (language != null && mounted) {
+          setState(() {
+            _working = true;
+          });
+          try {
+            summary = await ref
+                .read(dictionaryImporterProvider)
+                .importFiles(
+                  paths,
+                  targetLang: language,
+                  onProgress: (DictionaryImportProgress progress) {
+                    // A straggler from a previous import must not touch
+                    // the current one (A-49).
+                    if (mounted && token == _importToken) {
+                      setState(() {
+                        _progress = progress;
+                      });
+                    }
+                  },
+                );
+          } on DictionaryImportException catch (e) {
+            invalidReason = e.message;
+          } on DictionaryImportCancelledException {
+            cancelled = true;
+          } catch (_) {
+            failed = true;
+          }
+        }
+      }
     } finally {
+      // Anything still in flight belongs to this finished import (A-49).
+      _importToken++;
       if (mounted) {
         setState(() {
           _importing = false;
+          _working = false;
+          _progress = null;
         });
       }
     }
     if (!mounted) {
       return;
     }
+    if (pickFailed) {
+      _showMessage('Could not read the file.');
+      return;
+    }
     if (summary != null) {
-      _showMessage('Imported "${summary.name}" (${summary.entryCount} words).');
+      _showMessage('Imported "${summary.name}" (${summary.wordCount} words).');
+    } else if (cancelled) {
+      _showMessage('Import cancelled.');
     } else if (invalidReason != null) {
       _showMessage(invalidReason);
     } else if (failed) {
@@ -70,7 +130,71 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
     }
   }
 
+  void _cancelImport() {
+    ref.read(dictionaryImporterProvider).cancelImport();
+  }
+
+  String _progressLabel() {
+    final DictionaryImportProgress? progress = _progress;
+    final String phase = switch (progress?.phase) {
+      ImportPhase.extracting => 'Extracting…',
+      ImportPhase.copying => 'Copying files…',
+      ImportPhase.indexing => 'Building index…',
+      null => 'Starting…',
+    };
+    final double? fraction = progress?.fraction;
+    if (fraction == null) {
+      return phase;
+    }
+    return '$phase ${(fraction * 100).round()}%';
+  }
+
+  Future<String?> _askLanguage() async {
+    final String current = ref.read(settingsRepositoryProvider).meaningLanguage;
+    _languageController.text = current;
+    final String? value = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Dictionary language'),
+          content: TextField(
+            key: const Key('dictionaryLanguageField'),
+            controller: _languageController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Language code',
+              hintText: 'e.g. ru, de, es',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('dictionaryLanguageImport'),
+              onPressed: () =>
+                  Navigator.of(context).pop(_languageController.text),
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+    if (value == null) {
+      return null;
+    }
+    final String trimmed = value.trim().toLowerCase();
+    return trimmed.isEmpty ? current : trimmed;
+  }
+
   Future<void> _setEnabled(UserDictionary dictionary, bool enabled) async {
+    if (_updating) {
+      return;
+    }
+    setState(() {
+      _updating = true;
+    });
     try {
       await ref
           .read(userDictionaryRepositoryProvider)
@@ -79,10 +203,22 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
       if (mounted) {
         _showMessage('Could not update the dictionary.');
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updating = false;
+        });
+      }
     }
   }
 
   Future<void> _move(UserDictionary dictionary, int delta) async {
+    if (_updating) {
+      return;
+    }
+    setState(() {
+      _updating = true;
+    });
     try {
       await ref
           .read(userDictionaryRepositoryProvider)
@@ -90,6 +226,12 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
     } catch (_) {
       if (mounted) {
         _showMessage('Could not update the dictionary.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updating = false;
+        });
       }
     }
   }
@@ -100,10 +242,7 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Remove dictionary?'),
-          content: Text(
-            '"${dictionary.name}" and its ${dictionary.entryCount} words '
-            'will be removed.',
-          ),
+          content: Text('"${dictionary.name}" and its files will be removed.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -175,17 +314,54 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
             );
           },
         ),
+        // The bundled dictionary has the lowest priority, so it is listed
+        // after the user dictionaries (A-67).
+        ListTile(
+          key: const Key('bundledDictionaryTile'),
+          title: const Text('Bundled English-Russian'),
+          subtitle: Text(
+            'Built-in · '
+            '${NumberFormat.decimalPattern().format(bundledDictionaryWordCount)}'
+            ' words',
+          ),
+        ),
         ListTile(
           key: const Key('importDictionaryTile'),
           leading: const Icon(Icons.library_add),
           title: const Text('Import dictionary'),
           subtitle: const Text(
-            'A CSV file (word;translation) or an SQLite file '
-            "with an 'entry' table.",
+            'Select the .ifo or .dsl files of one dictionary '
+            '(or a single .zip archive with them).',
           ),
           enabled: !_importing,
           onTap: _import,
         ),
+        if (_working)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LinearProgressIndicator(value: _progress?.fraction),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _progressLabel(),
+                        key: const Key('importProgressLabel'),
+                      ),
+                    ),
+                    TextButton(
+                      key: const Key('importCancelButton'),
+                      onPressed: _cancelImport,
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -198,7 +374,9 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
           Switch(
             key: ValueKey('dictionarySwitch_${dictionary.id}'),
             value: dictionary.enabled,
-            onChanged: (bool value) => _setEnabled(dictionary, value),
+            onChanged: _updating
+                ? null
+                : (bool value) => _setEnabled(dictionary, value),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -207,7 +385,9 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
               children: [
                 Text(dictionary.name, overflow: TextOverflow.ellipsis),
                 Text(
-                  '${dictionary.entryCount} words',
+                  '${dictionary.targetLang} · '
+                  '${NumberFormat.decimalPattern().format(dictionary.wordCount)}'
+                  ' words',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -217,13 +397,13 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
             key: ValueKey('dictionaryUp_${dictionary.id}'),
             icon: const Icon(Icons.arrow_upward),
             tooltip: 'Move up',
-            onPressed: () => _move(dictionary, -1),
+            onPressed: _updating ? null : () => _move(dictionary, -1),
           ),
           IconButton(
             key: ValueKey('dictionaryDown_${dictionary.id}'),
             icon: const Icon(Icons.arrow_downward),
             tooltip: 'Move down',
-            onPressed: () => _move(dictionary, 1),
+            onPressed: _updating ? null : () => _move(dictionary, 1),
           ),
           IconButton(
             key: ValueKey('dictionaryRemove_${dictionary.id}'),

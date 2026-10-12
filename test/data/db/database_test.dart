@@ -173,33 +173,66 @@ void main() {
     expect(await db.select(db.reviews).get(), isEmpty);
   });
 
-  test('a v1 database migrates to v2 keeping units and reviews', () async {
-    final Directory dir = await Directory.systemTemp.createTemp(
-      'parley_migration_test',
-    );
-    addTearDown(() async {
-      if (await dir.exists()) {
-        await dir.delete(recursive: true);
-      }
-    });
-    final File file = File(p.join(dir.path, 'v1.sqlite'));
-    await File(p.join('test', 'fixtures', 'db_v1.sqlite')).copy(file.path);
-
-    final AppDatabase migrated = AppDatabase(NativeDatabase(file));
-    addTearDown(migrated.close);
-
-    final List<Unit> rows = await migrated.select(migrated.units).get();
-    expect(rows, hasLength(1));
-    expect(rows.first.unitText, 'Cow');
-    expect(rows.first.textKey, 'cow');
-    expect(rows.first.forms, '["cows"]');
-    expect(rows.first.knownManual, isFalse);
-
-    final List<Review> reviewRows = await migrated
-        .select(migrated.reviews)
+  /// The indexes of A-52/A-55, by name.
+  Future<List<String>> indexNames(AppDatabase database) {
+    return database
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN "
+          "('units_due', 'reviews_unit_id', 'messages_conversation_id', "
+          "'dictionaries_lookup', 'dictionaries_path')",
+        )
+        .map((row) => row.read<String>('name'))
         .get();
-    expect(reviewRows, hasLength(1));
-    expect(reviewRows.first.rating, 3);
-    expect(reviewRows.first.source, 'card');
+  }
+
+  test('the hot-query indexes are created (A-52)', () async {
+    expect(await indexNames(db), hasLength(5));
   });
+
+  test(
+    'a v1 database migrates to the current schema keeping units and reviews',
+    () async {
+      final Directory dir = await Directory.systemTemp.createTemp(
+        'parley_migration_test',
+      );
+      addTearDown(() async {
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+        }
+      });
+      final File file = File(p.join(dir.path, 'v1.sqlite'));
+      await File(p.join('test', 'fixtures', 'db_v1.sqlite')).copy(file.path);
+
+      final AppDatabase migrated = AppDatabase(NativeDatabase(file));
+      addTearDown(migrated.close);
+
+      final List<Unit> rows = await migrated.select(migrated.units).get();
+      expect(rows, hasLength(1));
+      expect(rows.first.unitText, 'Cow');
+      expect(rows.first.textKey, 'cow');
+      expect(rows.first.forms, '["cows"]');
+      expect(rows.first.knownManual, isFalse);
+
+      final List<Review> reviewRows = await migrated
+          .select(migrated.reviews)
+          .get();
+      expect(reviewRows, hasLength(1));
+      expect(reviewRows.first.rating, 3);
+      expect(reviewRows.first.source, 'card');
+
+      // 20.1: the dictionary metadata table exists (empty) and the 19.2
+      // entries table is gone.
+      expect(await migrated.select(migrated.dictionaries).get(), isEmpty);
+      final List<String> legacy = await migrated
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE name = 'dictionary_entries'",
+          )
+          .map((row) => row.read<String>('name'))
+          .get();
+      expect(legacy, isEmpty);
+
+      // A-52: the migration also creates the hot-query indexes.
+      expect(await indexNames(migrated), hasLength(5));
+    },
+  );
 }

@@ -3,15 +3,43 @@ import 'package:drift/drift.dart'
 
 import 'package:parley/data/models/unit.dart';
 
-/// One bundled-dictionary lookup result (SPEC 5.11).
+/// Language of the bundled dictionary (SPEC 5.11); it is only consulted
+/// when the meaning language setting matches it.
+const String bundledDictionaryLanguage = 'ru';
+
+/// Raised when a dictionary's files are missing or unreadable.
+class DictionarySourceException implements Exception {
+  const DictionarySourceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// One dictionary lookup result (SPEC 5.11, 5.5).
+///
+/// Extensible: sources that carry richer data (transcription, examples)
+/// fill the optional fields; the LLM fallback leaves them empty.
 class DictionaryEntry {
-  const DictionaryEntry({required this.textKey, required this.translation});
+  const DictionaryEntry({
+    required this.textKey,
+    required this.translation,
+    this.transcription,
+    this.examples = const [],
+  });
 
   /// Normalized lookup key.
   final String textKey;
 
-  /// Russian dictionary translation(s), comma-separated.
+  /// Dictionary translation(s), comma-separated.
   final String translation;
+
+  /// Phonetic transcription, when the source provides one.
+  final String? transcription;
+
+  /// Example sentences, when the source provides them.
+  final List<String> examples;
 }
 
 /// Bundled dictionary lookups (SPEC 5.11).

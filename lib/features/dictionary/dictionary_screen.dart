@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,8 +28,25 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
   String _query = '';
   UnitStatus? _filter;
 
+  /// Refreshes the relative due labels while the screen stays open (A-50).
+  Timer? _ticker;
+
+  /// Bumped by Retry to resubscribe after a stream error (A-50).
+  int _reload = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _ticker?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -87,13 +106,32 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           const SizedBox(height: 4),
           Expanded(
             child: StreamBuilder<List<Unit>>(
+              // A new key forces a fresh subscription after Retry (A-50).
+              key: ValueKey<int>(_reload),
               stream: repo.watchAll(
                 status: _filter,
                 query: _query.isEmpty ? null : _query,
               ),
               builder: (BuildContext context, AsyncSnapshot<List<Unit>> snap) {
                 if (snap.hasError) {
-                  return const Center(child: Text('Something went wrong.'));
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Something went wrong.'),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          key: const Key('dictionaryRetry'),
+                          onPressed: () {
+                            setState(() {
+                              _reload++;
+                            });
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
                 }
                 if (!snap.hasData) {
                   return const Center(child: CircularProgressIndicator());

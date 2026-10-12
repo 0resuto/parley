@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+// A-52: the due queue filters and orders by due.
+@TableIndex(name: 'units_due', columns: {#due})
 class Units extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get unitText => text().named('text')();
@@ -15,6 +17,8 @@ class Units extends Table {
   DateTimeColumn get lastReview => dateTime().nullable()();
 }
 
+// A-52: review lookups per unit (Tap Again, Word Judge).
+@TableIndex(name: 'reviews_unit_id', columns: {#unitId})
 class Reviews extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get unitId =>
@@ -26,31 +30,29 @@ class Reviews extends Table {
 
 /// One imported user dictionary (SPEC 5.12).
 ///
-/// `position` is the priority: lower values are consulted first by
-/// [UserDictionaryRepository.lookup].
+/// Metadata only: the dictionary data stays in its original files under
+/// `path`; `position` is the priority (lower values are consulted first)
+/// and `target_lang` is matched against the meaning language setting.
+// A-52: the resolver scans enabled dictionaries of the target language
+// ordered by priority.
+@TableIndex(
+  name: 'dictionaries_lookup',
+  columns: {#targetLang, #enabled, #position},
+)
+// A-55: one row per directory, so removing one row cannot delete the
+// files of another.
+@TableIndex(name: 'dictionaries_path', columns: {#path}, unique: true)
 @DataClassName('UserDictionaryRow')
 class Dictionaries extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
+  TextColumn get format => text()();
+  TextColumn get path => text()();
+  TextColumn get targetLang => text()();
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
   IntColumn get position => integer()();
-  IntColumn get entryCount => integer()();
+  IntColumn get wordCount => integer()();
   DateTimeColumn get importedAt => dateTime()();
-}
-
-/// One `text_key -> translation` row of an imported user dictionary.
-@DataClassName('DictionaryEntryRow')
-class DictionaryEntries extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get dictionaryId =>
-      integer().references(Dictionaries, #id, onDelete: KeyAction.cascade)();
-  TextColumn get textKey => text()();
-  TextColumn get translation => text()();
-
-  @override
-  List<Set<Column<Object>>> get uniqueKeys => [
-    {dictionaryId, textKey},
-  ];
 }
 
 class Conversations extends Table {
@@ -60,6 +62,8 @@ class Conversations extends Table {
   DateTimeColumn get updatedAt => dateTime()();
 }
 
+// A-52: message lists per conversation.
+@TableIndex(name: 'messages_conversation_id', columns: {#conversationId})
 class Messages extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get conversationId =>
