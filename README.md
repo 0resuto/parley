@@ -152,6 +152,17 @@ pre-commit install
 pre-commit install --hook-type pre-push
 ```
 
+### Bundled dictionary asset
+
+`assets/dictionary/en_ru.sqlite3` (9.34 MiB, built by
+`python tool/build_dictionary.py <kaikki-english.jsonl>`) is the largest file in
+the repo; the APK stores it deflated (3.67 MiB), and `check-added-large-files`
+exempts it on purpose. Every rebuild adds another ~9.34 MiB blob to the git
+history and must bump `dictionaryAssetVersion` in
+`lib/services/dictionary/dictionary_initializer.dart` so installed apps replace
+their stale copy. This is an accepted trade-off for a fully offline dictionary —
+revisit packaging at release time.
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/)
 and releases use [Semantic Versioning](https://semver.org/); release notes
 live in GitHub Releases.
