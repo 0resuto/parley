@@ -134,10 +134,16 @@ void main() {
   }
 
   ChatController notifier(int id) {
+    // The controller provider is auto-disposed (A-31): keep a listener so
+    // the state survives between calls in this test.
+    container.listen(chatControllerProvider(id), (_, _) {});
     return container.read(chatControllerProvider(id).notifier);
   }
 
-  ChatState stateOf(int id) => container.read(chatControllerProvider(id));
+  ChatState stateOf(int id) {
+    container.listen(chatControllerProvider(id), (_, _) {});
+    return container.read(chatControllerProvider(id));
+  }
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());

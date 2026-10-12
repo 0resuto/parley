@@ -79,7 +79,10 @@ class FakeSchedulerLlm implements LlmClient {
     double temperature = 0.2,
   }) async {
     calls.add(messages);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is String) {
       return next;
     }
@@ -139,21 +142,23 @@ class ScriptNotesUpdater extends NotesUpdater {
   final List<Object> script;
   final bool blockFirst;
   final Completer<void> gate = Completer<void>();
+  // (T-20) completes when the first updateOnce call is entered, so the
+  // mutex test needs no polling.
+  final Completer<void> entered = Completer<void>();
   int calls = 0;
   int _index = 0;
 
   @override
   Future<bool> updateOnce() async {
     calls++;
+    if (!entered.isCompleted) {
+      entered.complete();
+    }
     if (blockFirst && calls == 1) {
       await gate.future;
     }
     if (_index >= script.length) {
-      final Object last = script.last;
-      if (last is bool) {
-        return last;
-      }
-      throw last;
+      throw StateError('script exhausted');
     }
     final Object next = script[_index++];
     if (next is bool) {
@@ -329,16 +334,15 @@ void main() {
       final TutorScheduler scheduler = makeScheduler(notes: notes);
 
       final Future<void> first = scheduler.run();
-      // Wait until the first run entered updateOnce.
-      for (int i = 0; i < 100 && notes.calls == 0; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
+      // (T-20) Deterministically wait until the first run is inside updateOnce.
+      await notes.entered.future;
       expect(notes.calls, 1);
       expect(scheduler.isRunning, isTrue);
 
       // Second run while the first is blocked must not call updateOnce.
       await scheduler.run();
       expect(notes.calls, 1);
+      expect(scheduler.isRunning, isTrue);
 
       notes.gate.complete();
       await first;

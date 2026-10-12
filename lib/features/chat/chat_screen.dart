@@ -48,6 +48,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String? _loadError;
   final Set<int> _undoing = {};
 
+  /// Keeps the current conversation's controller alive while the screen
+  /// switches between conversations (the controller is auto-disposed,
+  /// A-31). Closed on switch and in [dispose].
+  ProviderSubscription<ChatState>? _chatSubscription;
+
+  /// Monotonic token: only the newest conversation switch or creation may
+  /// apply its result, so a slower earlier one cannot win (A-35).
+  int _switchToken = 0;
+
   @override
   void initState() {
     super.initState();
@@ -60,9 +69,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _chatSubscription?.close();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Listens to the controller of [id] (and stops listening to the
+  /// previous one), so `refresh` can run before the next frame watches it.
+  void _watchConversation(int id) {
+    _chatSubscription?.close();
+    _chatSubscription = ref.listenManual(chatControllerProvider(id), (_, _) {});
   }
 
   @override
@@ -114,6 +131,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = chosen!.id;
         _title = chosen.title;
       });
+      _watchConversation(chosen.id);
       await ref.read(chatControllerProvider(chosen.id).notifier).refresh();
       if (!mounted) {
         return;
@@ -168,12 +186,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _newChat() async {
+    final int token = ++_switchToken;
+    final int? currentId = _conversationId;
+    if (currentId != null) {
+      final ChatState current = ref.read(chatControllerProvider(currentId));
+      // An empty conversation is already a new chat: keep it (and the
+      // draft) instead of stacking duplicate empty rows in history
+      // (PLAN 21.1). The token bump above still cancels an in-flight
+      // slower switch.
+      if (current.messages.isEmpty &&
+          !current.isStreaming &&
+          !current.isLoading) {
+        return;
+      }
+    }
     _notifyNewConversation();
     try {
       final Conversation created = await ref
           .read(chatRepositoryProvider)
           .createConversation();
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       setState(() {
@@ -181,8 +213,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _title = created.title;
       });
       _input.clear();
+      _watchConversation(created.id);
       await ref.read(chatControllerProvider(created.id).notifier).refresh();
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       setState(() {});
@@ -217,8 +250,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     final ChatState state = ref.read(chatControllerProvider(id));
     // Early failures (offline / not configured) keep the typed text in
-    // [ChatState.draft]; success clears it, so clear the field only then.
-    if (state.draft.isEmpty) {
+    // [ChatState.draft]; success clears it. The field is cleared only when
+    // it still holds the sent text in the same conversation, so a message
+    // typed during the stream (or after switching chats) is not wiped
+    // (A-32).
+    if (state.draft.isEmpty && _conversationId == id && _input.text == text) {
       _input.clear();
     }
     await _refreshTitle();
@@ -323,12 +359,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _openConversation(int id) async {
+    final int token = ++_switchToken;
     _notifyConversationLeft();
     try {
       final Conversation? conversation = await ref
           .read(chatRepositoryProvider)
           .getConversation(id);
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       if (conversation == null) {
@@ -340,14 +377,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _title = conversation.title;
       });
       _input.clear();
+      _watchConversation(conversation.id);
       await ref
           .read(chatControllerProvider(conversation.id).notifier)
           .refresh();
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       await _refreshTitle();
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       setState(() {});
@@ -363,10 +401,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _openMostRecentOrNew() async {
+    final int token = ++_switchToken;
     try {
       final ChatRepository chats = ref.read(chatRepositoryProvider);
       final Conversation chosen = await _mostRecentOrNew(chats);
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       setState(() {
@@ -374,12 +413,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _title = chosen.title;
       });
       _input.clear();
+      _watchConversation(chosen.id);
       await ref.read(chatControllerProvider(chosen.id).notifier).refresh();
       if (!mounted) {
         return;
       }
       await _refreshTitle();
-      if (!mounted) {
+      if (!mounted || token != _switchToken) {
         return;
       }
       setState(() {});
@@ -461,6 +501,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     final int id = _conversationId!;
     final ChatState state = ref.watch(chatControllerProvider(id));
+    // Follow the growing streamed reply, so new text stays visible (A-33).
+    ref.listen(chatControllerProvider(id), (
+      ChatState? previous,
+      ChatState next,
+    ) {
+      final int before = previous?.streamingText.length ?? 0;
+      if (next.streamingText.length > before) {
+        _scrollToBottom();
+      }
+    });
     final UnitIndex index = ref
         .watch(unitIndexProvider)
         .maybeWhen(data: (v) => v, orElse: UnitIndex.empty);
@@ -503,6 +553,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     final int extra = streaming ? 1 : 0;
     return ListView.builder(
+      key: const Key('chatList'),
       controller: _scroll,
       padding: const EdgeInsets.all(16),
       itemCount: messages.length + extra,
@@ -511,7 +562,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           final String text = state.streamingText.isEmpty
               ? '...'
               : state.streamingText;
-          return _streamingText(context, text);
+          return _streamingText(context, text, index);
         }
         final ChatMessage message = messages[indexBuilder];
         switch (message.role) {
@@ -547,17 +598,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget _streamingText(BuildContext context, String content) {
-    final UnitIndex empty = UnitIndex.empty();
+  Widget _streamingText(BuildContext context, String content, UnitIndex index) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: MessageText(
         rawText: content,
-        index: empty,
+        index: index,
         style: Theme.of(context).textTheme.bodyLarge,
         onWordTap: (surface, key, sentence) =>
-            _openWordPopup(empty, surface, key, sentence),
+            _openWordPopup(index, surface, key, sentence),
       ),
     );
   }

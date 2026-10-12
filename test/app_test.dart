@@ -1,8 +1,11 @@
+import 'package:drift/drift.dart' show DatabaseConnection;
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:parley/app.dart';
+import 'package:parley/data/db/database.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/shell/shell_screen.dart';
@@ -12,20 +15,34 @@ import 'helpers/fake_clock.dart';
 import 'helpers/fake_unit_repository.dart';
 
 void main() {
+  late AppDatabase db;
   late FakeUnitRepository repo;
   late FakeClock clock;
   late FakeChatRepository chats;
 
   setUp(() {
+    // (T-20) In-memory database; close streams synchronously so no drift
+    // timer stays pending when the widget tree is disposed.
+    db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
     clock = FakeClock(DateTime.utc(2026, 1, 10, 12));
     repo = FakeUnitRepository(clock: clock);
     chats = FakeChatRepository(clock: clock);
+  });
+
+  tearDown(() async {
+    await db.close();
   });
 
   Future<void> pumpApp(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appDatabaseProvider.overrideWithValue(db),
           unitRepositoryProvider.overrideWithValue(repo),
           clockProvider.overrideWithValue(clock),
           chatRepositoryProvider.overrideWithValue(chats),

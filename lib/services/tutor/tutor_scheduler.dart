@@ -57,7 +57,9 @@ class TutorScheduler {
         try {
           wrote = await _notes.updateOnce();
         } catch (e) {
-          debugPrint('tutor scheduler failed: $e');
+          if (kDebugMode) {
+            debugPrint('tutor scheduler failed: $e');
+          }
           break;
         }
         if (!wrote) {
@@ -78,7 +80,9 @@ class TutorScheduler {
       }
       await run();
     } catch (e) {
-      debugPrint('tutor scheduler after-reply failed: $e');
+      if (kDebugMode) {
+        debugPrint('tutor scheduler after-reply failed: $e');
+      }
     }
   }
 
@@ -87,7 +91,9 @@ class TutorScheduler {
     try {
       await run();
     } catch (e) {
-      debugPrint('tutor scheduler pause failed: $e');
+      if (kDebugMode) {
+        debugPrint('tutor scheduler pause failed: $e');
+      }
     }
   }
 
@@ -100,7 +106,9 @@ class TutorScheduler {
       }
       await run();
     } catch (e) {
-      debugPrint('tutor scheduler leave failed: $e');
+      if (kDebugMode) {
+        debugPrint('tutor scheduler leave failed: $e');
+      }
     }
   }
 
@@ -113,7 +121,9 @@ class TutorScheduler {
       }
       await run();
     } catch (e) {
-      debugPrint('tutor scheduler new-chat failed: $e');
+      if (kDebugMode) {
+        debugPrint('tutor scheduler new-chat failed: $e');
+      }
     }
   }
 }

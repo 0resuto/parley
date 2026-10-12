@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/features/settings/settings_providers.dart';
@@ -17,14 +19,34 @@ class MessageSpeechState {
 ///
 /// One playback at a time: starting another message speaks the new text
 /// ([TtsService.speak] stops the current engine playback first) and moves
-/// [MessageSpeechState.playingId]. Text cleaning and the speech rate live in
-/// [TtsService], so this controller passes the raw message text through.
+/// [MessageSpeechState.playingId]. The controller also follows
+/// [TtsService.isSpeaking]: when the engine reports it stopped on its own
+/// (completion, cancel or error), the state returns to idle so the button
+/// shows Play again. Text cleaning and the speech rate live in [TtsService],
+/// so this controller passes the raw message text through.
 /// Failures are best-effort and never surface in the UI: visible text never
 /// changes because of audio.
 class MessageSpeechController extends Notifier<MessageSpeechState> {
+  /// True while [play] waits for the engine to start the utterance.
+  bool _starting = false;
+
   @override
   MessageSpeechState build() {
+    final StreamSubscription<bool> subscription = ref
+        .read(ttsServiceProvider)
+        .isSpeaking
+        .listen(_onSpeakingChanged);
+    ref.onDispose(subscription.cancel);
     return const MessageSpeechState();
+  }
+
+  void _onSpeakingChanged(bool speaking) {
+    // A false outside play() means playback ended by itself; a false emitted
+    // while starting is the tail of the previous utterance and is ignored.
+    if (speaking || _starting || state.playingId == null) {
+      return;
+    }
+    state = const MessageSpeechState();
   }
 
   /// Speaks [rawText] as message [id], replacing any current playback.
@@ -32,13 +54,16 @@ class MessageSpeechController extends Notifier<MessageSpeechState> {
     if (cleanTtsText(rawText).trim().isEmpty) {
       return;
     }
+    _starting = true;
     try {
       await ref.read(ttsServiceProvider).speak(rawText);
     } catch (_) {
       // Speak is best-effort; a failure leaves the button on Play.
+      _starting = false;
       state = const MessageSpeechState();
       return;
     }
+    _starting = false;
     if (!ref.mounted) {
       return;
     }

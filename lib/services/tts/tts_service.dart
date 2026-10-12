@@ -56,6 +56,13 @@ class FakeTtsService implements TtsService {
   @override
   Stream<bool> get isSpeaking => _speaking.stream;
 
+  /// Emits a raw speaking-state event, as the engine handlers would.
+  ///
+  /// Tests use this to simulate playback finishing on its own.
+  void emitSpeaking(bool speaking) {
+    _speaking.add(speaking);
+  }
+
   /// Closes the underlying stream controller.
   Future<void> dispose() => _speaking.close();
 }

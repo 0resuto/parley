@@ -26,6 +26,11 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
   String? _error;
   List<Conversation> _conversations = const [];
 
+  /// Bumped on every reload: a row restored after a failed swipe-delete
+  /// gets fresh Dismissible keys, because a dismissed Dismissible may not
+  /// stay in the tree with the same key (A-30).
+  int _listRevision = 0;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +52,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
         return;
       }
       setState(() {
+        _listRevision++;
         _conversations = all;
         _loading = false;
         _error = null;
@@ -127,6 +133,9 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not delete the conversation.')),
       );
+      // A swipe already removed the row from the tree; reload so the
+      // still-existing conversation reappears (A-30).
+      await _load();
       return;
     }
     await _load();
@@ -185,7 +194,9 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
       itemBuilder: (BuildContext context, int index) {
         final Conversation conversation = _conversations[index];
         return Dismissible(
-          key: ValueKey('conversationDismissible_${conversation.id}'),
+          key: ValueKey(
+            'conversationDismissible_${conversation.id}_$_listRevision',
+          ),
           direction: DismissDirection.endToStart,
           background: Container(
             color: Theme.of(context).colorScheme.errorContainer,

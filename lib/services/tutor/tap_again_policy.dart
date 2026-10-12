@@ -50,7 +50,9 @@ class TapAgainPolicy {
       );
       return updated != null;
     } catch (e) {
-      debugPrint('tap-as-again failed: $e');
+      if (kDebugMode) {
+        debugPrint('tap-as-again failed: $e');
+      }
       return false;
     }
   }

@@ -127,10 +127,16 @@ void main() {
   }
 
   ChatController notifier(int id) {
+    // The controller provider is auto-disposed (A-31): keep a listener so
+    // the state survives between calls in this test.
+    container.listen(chatControllerProvider(id), (_, _) {});
     return container.read(chatControllerProvider(id).notifier);
   }
 
-  ChatState stateOf(int id) => container.read(chatControllerProvider(id));
+  ChatState stateOf(int id) {
+    container.listen(chatControllerProvider(id), (_, _) {});
+    return container.read(chatControllerProvider(id));
+  }
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
@@ -330,5 +336,29 @@ void main() {
       expect(llm.streamCalls, isEmpty);
       expect(stateOf(id).isStreaming, isFalse);
     });
+
+    test(
+      'the controller is disposed when it has no listeners (A-31)',
+      () async {
+        final int id = await makeConversation();
+        final ProviderSubscription<ChatState> sub = container.listen(
+          chatControllerProvider(id),
+          (_, _) {},
+        );
+        final ChatController first = container.read(
+          chatControllerProvider(id).notifier,
+        );
+        expect(container.exists(chatControllerProvider(id)), isTrue);
+
+        sub.close();
+        await container.pump();
+        expect(container.exists(chatControllerProvider(id)), isFalse);
+
+        final ChatController second = container.read(
+          chatControllerProvider(id).notifier,
+        );
+        expect(identical(first, second), isFalse);
+      },
+    );
   });
 }

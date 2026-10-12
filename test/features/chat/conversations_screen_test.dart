@@ -109,6 +109,16 @@ class FlakyListChatRepository extends FakeChatRepository {
   }
 }
 
+/// [ChatRepository] double whose deletes always fail (A-30).
+class FailingDeleteChatRepository extends FakeChatRepository {
+  FailingDeleteChatRepository({required super.clock});
+
+  @override
+  Future<void> deleteConversation(int id) async {
+    throw StateError('db unavailable');
+  }
+}
+
 void main() {
   late FakeClock clock;
   late FakeChatRepository chats;
@@ -211,6 +221,45 @@ void main() {
       expect(find.byKey(const Key('chatInput')), findsOneWidget);
     });
 
+    testWidgets('history orders by updatedAt, not insertion order', (
+      WidgetTester tester,
+    ) async {
+      final Conversation first = await chats.createConversation(
+        title: 'First chat',
+      );
+      clock.advance(const Duration(minutes: 1));
+      final Conversation second = await chats.createConversation(
+        title: 'Second chat',
+      );
+      // Insertion order is [first, second], but the bump makes `second`
+      // the most recently updated conversation.
+      clock.advance(const Duration(minutes: 1));
+      await chats.addMessage(
+        conversationId: second.id,
+        role: ChatRole.user,
+        content: 'bump second',
+      );
+
+      // (T-17) the fake's stream must mirror watchConversations:
+      // updatedAt DESC, id DESC.
+      final List<Conversation> watched = await chats.watchConversations().first;
+      expect(watched.map((c) => c.id).toList(), [second.id, first.id]);
+
+      await pumpHistory(tester);
+
+      // Most recently updated conversation is shown first.
+      expect(
+        tester
+            .getTopLeft(find.byKey(ValueKey('conversationTile_${second.id}')))
+            .dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(ValueKey('conversationTile_${first.id}')))
+              .dy,
+        ),
+      );
+    });
+
     testWidgets('delete with confirmation removes the conversation', (
       WidgetTester tester,
     ) async {
@@ -236,6 +285,81 @@ void main() {
       expect(find.text('Second chat'), findsOneWidget);
       expect(await chats.getConversation(first.id), isNull);
     });
+
+    testWidgets('a failed swipe-delete restores the conversation', (
+      WidgetTester tester,
+    ) async {
+      final FailingDeleteChatRepository failing = FailingDeleteChatRepository(
+        clock: clock,
+      );
+      final Conversation first = await failing.createConversation(
+        title: 'First chat',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [chatRepositoryProvider.overrideWithValue(failing)],
+          child: const MaterialApp(home: ConversationsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byKey(ValueKey('conversationTile_${first.id}')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirmDeleteButton')));
+      await tester.pumpAndSettle();
+
+      // The swipe removed the row, but the delete failed: the still
+      // existing conversation must reappear with an error message.
+      expect(find.text('Could not delete the conversation.'), findsOneWidget);
+      expect(find.text('First chat'), findsOneWidget);
+      expect(await failing.getConversation(first.id), isNotNull);
+    });
+
+    testWidgets(
+      'a failed trash-icon delete reports the error and keeps the row',
+      (WidgetTester tester) async {
+        final FailingDeleteChatRepository failing = FailingDeleteChatRepository(
+          clock: clock,
+        );
+        final Conversation first = await failing.createConversation(
+          title: 'First chat',
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [chatRepositoryProvider.overrideWithValue(failing)],
+            child: const MaterialApp(home: ConversationsScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.byKey(ValueKey('deleteConversation_${first.id}')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('confirmDeleteButton')));
+        await tester.pumpAndSettle();
+
+        // The trash icon never removed the row from the tree; the failed
+        // delete must report the error, reload the list and keep the row
+        // dismissible (T-19).
+        expect(find.text('Could not delete the conversation.'), findsOneWidget);
+        expect(find.text('First chat'), findsOneWidget);
+        expect(find.text('No conversations yet.'), findsNothing);
+        final Finder rowDismissible = find.byWidgetPredicate(
+          (Widget w) =>
+              w is Dismissible &&
+              w.key is ValueKey<String> &&
+              (w.key! as ValueKey<String>).value.startsWith(
+                'conversationDismissible_${first.id}_',
+              ),
+        );
+        expect(rowDismissible, findsOneWidget);
+        expect(await failing.getConversation(first.id), isNotNull);
+      },
+    );
 
     testWidgets('New chat creates an empty conversation', (
       WidgetTester tester,

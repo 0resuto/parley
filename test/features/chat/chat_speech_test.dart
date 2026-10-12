@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,6 +121,7 @@ void main() {
   late FakeSpeechLlm llm;
   late TestTtsService tts;
   late MemoryDocumentStore docs;
+  ChatReplyHook? hook;
   final DateTime initial = DateTime.utc(2026, 4, 1, 12);
 
   setUp(() {
@@ -128,6 +131,7 @@ void main() {
     settings = FakeSpeechSettings();
     connectivity = FakeConnectivityService();
     docs = MemoryDocumentStore();
+    hook = null;
   });
 
   tearDown(() async {
@@ -147,6 +151,7 @@ void main() {
           connectivityServiceProvider.overrideWithValue(connectivity),
           llmClientProvider.overrideWithValue(llm),
           ttsServiceProvider.overrideWithValue(tts),
+          if (hook != null) chatReplyHookProvider.overrideWithValue(hook!),
         ],
         child: const MaterialApp(home: ChatScreen()),
       ),
@@ -200,6 +205,34 @@ void main() {
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsNothing);
       expect(find.text('Say heifer please'), findsOneWidget);
+    });
+
+    testWidgets('engine completion returns the button to Play', (
+      WidgetTester tester,
+    ) async {
+      llm = FakeSpeechLlm(['finished reply']);
+      tts = TestTtsService();
+      await pumpChat(tester);
+
+      await send(tester, 'hi');
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.stop), findsOneWidget);
+
+      // The engine finishes the utterance on its own (no Stop tap).
+      tts.emitSpeaking(false);
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.stop), findsNothing);
+
+      // Play works again after natural completion.
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.stop), findsOneWidget);
+      expect(tts.spokenTexts, ['finished reply', 'finished reply']);
     });
 
     testWidgets('switching messages stops the first', (
@@ -263,6 +296,27 @@ void main() {
       expect(tts.spokenTexts, isEmpty);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsNothing);
+    });
+
+    testWidgets('auto-play does not wait for the reply hook', (
+      WidgetTester tester,
+    ) async {
+      settings.autoPlayValue = true;
+      final Completer<void> hookGate = Completer<void>();
+      hook = (_) => hookGate.future;
+      llm = FakeSpeechLlm(['auto hello']);
+      tts = TestTtsService();
+      await pumpChat(tester);
+
+      await send(tester, 'hi');
+
+      // Speech starts while the background tutor jobs are still running
+      // (A-36).
+      expect(tts.spokenTexts, ['auto hello']);
+      expect(find.byIcon(Icons.stop), findsOneWidget);
+
+      hookGate.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('play buttons use per-message keys', (

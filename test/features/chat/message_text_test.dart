@@ -172,17 +172,14 @@ void main() {
     testWidgets('tap reports surface, key and sentence', (
       WidgetTester tester,
     ) async {
-      final UnitIndex index = UnitIndex.fromUnits([
-        _unit(text: 'cows', forms: const []),
-      ]);
+      final UnitIndex index = UnitIndex.fromUnits([_unit(text: 'cows')]);
       final List<List<String>> calls = [];
       final RichText rich = await _pump(
         tester,
         raw: 'Hello world. I love COWS a lot.',
-        index: UnitIndex.fromUnits([_unit(text: 'cows')]),
+        index: index,
         onTap: (surface, key, sentence) => calls.add([surface, key, sentence]),
       );
-      expect(index.lookup('cows'), isNotNull);
       final List<TextSpan> words = _wordSpans(rich);
       final TextSpan cows = words.firstWhere((w) => w.text == 'COWS');
       (cows.recognizer! as TapGestureRecognizer).onTap!();

@@ -306,7 +306,9 @@ class ChatController extends Notifier<ChatState> {
         streamingText: '',
         clearError: true,
       );
-      await _notifyHook();
+      // Fire-and-forget: the Stop button must not wait for the background
+      // tutor jobs (A-36).
+      unawaited(_notifyHook());
     } catch (_) {
       if (ref.mounted) {
         state = state.copyWith(
@@ -442,6 +444,17 @@ class ChatController extends Notifier<ChatState> {
   /// `event` message, sends the tool result back, and streams the model's
   /// final reply. Mid-stream errors discard the partial text.
   Future<void> _runStream(List<LlmMessage> request) async {
+    // A streaming reply keeps the controller alive even if the screen is
+    // closed meanwhile, so the reply is still persisted (A-31).
+    final keepAlive = ref.keepAlive();
+    try {
+      await _runStreamBody(request);
+    } finally {
+      keepAlive.close();
+    }
+  }
+
+  Future<void> _runStreamBody(List<LlmMessage> request) async {
     final LlmClient llm = ref.read(llmClientProvider);
     _buffer = '';
     _stopped = false;
@@ -547,7 +560,9 @@ class ChatController extends Notifier<ChatState> {
         streamingText: '',
         clearError: true,
       );
-      await _notifyHook();
+      // Fire-and-forget: auto-play must not wait for the background tutor
+      // jobs (A-36).
+      unawaited(_notifyHook());
     } catch (_) {
       if (ref.mounted) {
         state = state.copyWith(
@@ -666,7 +681,9 @@ class ChatController extends Notifier<ChatState> {
     try {
       await docs.write(DocumentKind.rules, content);
     } catch (e) {
-      debugPrint('update_rules write failed: $e');
+      if (kDebugMode) {
+        debugPrint('update_rules write failed: $e');
+      }
       return 'ERROR: could not save.';
     }
     String versionId = '';
@@ -698,7 +715,9 @@ class ChatController extends Notifier<ChatState> {
         }
       }
     } catch (e) {
-      debugPrint('update_rules event failed: $e');
+      if (kDebugMode) {
+        debugPrint('update_rules event failed: $e');
+      }
     }
     return updateRulesOkResult;
   }
@@ -708,7 +727,9 @@ class ChatController extends Notifier<ChatState> {
     try {
       await ref.read(chatReplyHookProvider)(conversationId);
     } catch (e) {
-      debugPrint('onAssistantReplyDone failed: $e');
+      if (kDebugMode) {
+        debugPrint('onAssistantReplyDone failed: $e');
+      }
     }
   }
 
@@ -721,7 +742,11 @@ class ChatController extends Notifier<ChatState> {
 }
 
 /// Chat controller family, keyed by conversation id.
+///
+/// Auto-disposed: a controller (and its stream subscription) lives only
+/// while its conversation is watched or a reply is streaming (A-31).
 final chatControllerProvider =
     NotifierProvider.family<ChatController, ChatState, int>(
       (int arg) => ChatController(arg),
+      isAutoDispose: true,
     );

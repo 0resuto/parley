@@ -119,9 +119,11 @@ class ChatRepository {
           }
         }
         if (nonBlank == 1) {
-          nextTitle = trimmed.length <= conversationTitleLength
+          // (A-56) cut on runes so the title never splits a surrogate pair.
+          final Runes runes = trimmed.runes;
+          nextTitle = runes.length <= conversationTitleLength
               ? trimmed
-              : trimmed.substring(0, conversationTitleLength);
+              : String.fromCharCodes(runes.take(conversationTitleLength));
         }
       }
     }
@@ -180,27 +182,16 @@ class ChatRepository {
   /// LLM history per SPEC 5.3: last 30 user/assistant messages in order,
   /// dropping the oldest until the total is at most 12000 chars.
   ///
-  /// `event` messages are never included.
+  /// The newest message is always kept; when it alone exceeds the limit it
+  /// is truncated to the limit (see [trimHistoryForLlm]). `event` messages
+  /// are never included.
   Future<List<LlmMessage>> historyForLlm(int conversationId) async {
     final List<ChatMessage> all = await listMessages(conversationId);
     final List<ChatMessage> usable = all
         .where((m) => m.role != ChatRole.event)
         .toList();
-    final List<ChatMessage> window = usable.length <= chatHistoryMaxMessages
-        ? usable
-        : usable.sublist(usable.length - chatHistoryMaxMessages);
-    int total = 0;
-    for (final ChatMessage message in window) {
-      total += message.content.length;
-    }
-    int drop = 0;
-    while (drop < window.length && total > chatHistoryMaxChars) {
-      total -= window[drop].content.length;
-      drop++;
-    }
-    final List<ChatMessage> trimmed = drop == 0 ? window : window.sublist(drop);
     return [
-      for (final ChatMessage message in trimmed)
+      for (final ChatMessage message in trimHistoryForLlm(usable))
         LlmMessage(
           role: message.role == ChatRole.user
               ? LlmRole.user
@@ -239,11 +230,28 @@ class ChatRepository {
     );
   }
 
-  /// Replaces a message's content (used to mark a rules event reverted).
+  /// Replaces a message's content (used to mark a rules event reverted) and
+  /// bumps the owning conversation's `updated_at`, so the chat rises in the
+  /// conversation list (A-57).
   Future<void> updateMessageContent(int id, String content) async {
-    await (_db.update(_db.messages)..where((t) => t.id.equals(id))).write(
-      db.MessagesCompanion(content: Value(content)),
-    );
+    final List<db.Message> rows = await (_db.select(
+      _db.messages,
+    )..where((t) => t.id.equals(id))).get();
+    if (rows.isEmpty) {
+      return;
+    }
+    final DateTime now = _clock.now().toUtc();
+    await _db.transaction(() async {
+      await (_db.update(_db.messages)..where((t) => t.id.equals(id))).write(
+        db.MessagesCompanion(content: Value(content)),
+      );
+      await (_db.update(
+        _db.conversations,
+      )..where((t) => t.id.equals(rows.first.conversationId))).write(
+        // (A-57) Undo must touch the conversation like addMessage does.
+        db.ConversationsCompanion(updatedAt: Value(now)),
+      );
+    });
   }
 
   Conversation _toConversation(db.Conversation row) {
@@ -265,6 +273,37 @@ class ChatRepository {
       processedByNotes: row.processedByNotes,
     );
   }
+}
+
+/// Applies the SPEC 5.3 history window to [usable] messages (oldest first):
+/// keeps at most [chatHistoryMaxMessages] of them and drops the oldest until
+/// the total fits [chatHistoryMaxChars].
+///
+/// The newest message is always kept; when it alone exceeds the limit it is
+/// truncated to the limit without splitting a surrogate pair.
+List<ChatMessage> trimHistoryForLlm(List<ChatMessage> usable) {
+  final List<ChatMessage> window = usable.length <= chatHistoryMaxMessages
+      ? usable
+      : usable.sublist(usable.length - chatHistoryMaxMessages);
+  int total = 0;
+  for (final ChatMessage message in window) {
+    total += message.content.length;
+  }
+  int drop = 0;
+  while (drop < window.length - 1 && total > chatHistoryMaxChars) {
+    total -= window[drop].content.length;
+    drop++;
+  }
+  if (total <= chatHistoryMaxChars) {
+    return drop == 0 ? window : window.sublist(drop);
+  }
+  final ChatMessage newest = window.last;
+  int end = chatHistoryMaxChars;
+  final int unit = newest.content.codeUnitAt(end - 1);
+  if (unit >= 0xD800 && unit <= 0xDBFF) {
+    end -= 1;
+  }
+  return [newest.copyWith(content: newest.content.substring(0, end))];
 }
 
 /// Builds the chat repository from the app database and clock.

@@ -130,6 +130,22 @@ void main() {
       );
     });
 
+    test('title truncation does not split a surrogate pair', () async {
+      final Conversation conversation = await repo.createConversation();
+      // 39 'a's, then an emoji (2 UTF-16 units): a plain substring cut at 40
+      // code units would keep only the emoji's high surrogate.
+      final String message = '${'a' * 39}🚀 plus further text';
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: message,
+      );
+
+      final String title = (await repo.getConversation(conversation.id))!.title;
+      expect(title, '${'a' * 39}🚀');
+      expect(title.runes.length, 40);
+    });
+
     test('event messages never set the title', () async {
       final Conversation conversation = await repo.createConversation();
       await repo.addMessage(
@@ -138,6 +154,51 @@ void main() {
         content: '{"type":"rules_updated"}',
       );
       expect((await repo.getConversation(conversation.id))!.title, 'New chat');
+    });
+  });
+
+  group('updateMessageContent', () {
+    test('replaces content and bumps the conversation updated_at', () async {
+      final Conversation conversation = await repo.createConversation();
+      final ChatMessage message = await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'original',
+      );
+      final DateTime before = (await repo.getConversation(
+        conversation.id,
+      ))!.updatedAt;
+
+      clock.advance(const Duration(minutes: 5));
+      await repo.updateMessageContent(message.id, 'reverted');
+
+      expect((await repo.getMessage(message.id))!.content, 'reverted');
+      final Conversation? updated = await repo.getConversation(conversation.id);
+      expect(updated!.updatedAt, clock.now().toUtc());
+      expect(updated.updatedAt.isAfter(before), isTrue);
+    });
+
+    test('rises to the top of watchConversations after an undo', () async {
+      final Conversation first = await repo.createConversation();
+      final ChatMessage message = await repo.addMessage(
+        conversationId: first.id,
+        role: ChatRole.user,
+        content: 'hello',
+      );
+      clock.advance(const Duration(minutes: 1));
+      final Conversation second = await repo.createConversation();
+      expect((await repo.watchConversations().first).map((c) => c.id), [
+        second.id,
+        first.id,
+      ]);
+
+      clock.advance(const Duration(minutes: 1));
+      await repo.updateMessageContent(message.id, 'reverted');
+
+      expect((await repo.watchConversations().first).map((c) => c.id), [
+        first.id,
+        second.id,
+      ]);
     });
   });
 
@@ -217,6 +278,146 @@ void main() {
         (sum, m) => sum + m.content.length,
       );
       expect(total <= 12000, isTrue);
+    });
+
+    test(
+      'keeps and truncates the newest message when it alone is too long',
+      () async {
+        final Conversation conversation = await repo.createConversation();
+        await repo.addMessage(
+          conversationId: conversation.id,
+          role: ChatRole.user,
+          content: 'x' * 13001,
+        );
+
+        final List<LlmMessage> history = await repo.historyForLlm(
+          conversation.id,
+        );
+        expect(history, hasLength(1));
+        expect(history.single.role, LlmRole.user);
+        expect(history.single.content, 'x' * 12000);
+      },
+    );
+
+    test('drops older messages before truncating the newest', () async {
+      final Conversation conversation = await repo.createConversation();
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'old',
+      );
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'reply',
+      );
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'y' * 13001,
+      );
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      expect(history, hasLength(1));
+      expect(history.single.content, 'y' * 12000);
+    });
+
+    test('truncation does not split a surrogate pair', () async {
+      final Conversation conversation = await repo.createConversation();
+      // 11999 'x' + an astral char (2 units) + 'y' = 12002 units.
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: '${'x' * 11999}𝄞y',
+      );
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      expect(history.single.content, 'x' * 11999);
+    });
+
+    test('keeps a window that totals exactly 12000 chars', () async {
+      final Conversation conversation = await repo.createConversation();
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'a' * 6000,
+      );
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'b' * 6000,
+      );
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      expect(history, hasLength(2));
+      expect(history.first.content, 'a' * 6000);
+      expect(history.last.content, 'b' * 6000);
+    });
+
+    test('drops the oldest when the total is 12001', () async {
+      final Conversation conversation = await repo.createConversation();
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'a' * 6000,
+      );
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'b' * 6001,
+      );
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      expect(history, hasLength(1));
+      expect(history.single.content, 'b' * 6001);
+    });
+
+    test('truncates a message of exactly 12001 chars to 12000', () async {
+      final Conversation conversation = await repo.createConversation();
+      await repo.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'x' * 12001,
+      );
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      expect(history, hasLength(1));
+      expect(history.single.content, 'x' * 12000);
+    });
+
+    test('applies the message cap before the char limit', () async {
+      final Conversation conversation = await repo.createConversation();
+      for (int i = 0; i < 35; i++) {
+        await repo.addMessage(
+          conversationId: conversation.id,
+          role: i.isEven ? ChatRole.user : ChatRole.assistant,
+          content: 'm$i'.padRight(500, 'x'),
+        );
+      }
+
+      final List<LlmMessage> history = await repo.historyForLlm(
+        conversation.id,
+      );
+      // 35 x 500 = 17500 chars: the cap keeps m5..m34 (15000), then the char
+      // limit drops m5..m10, leaving m11..m34 at exactly 12000 chars.
+      expect(history, hasLength(24));
+      expect(history.first.content.startsWith('m11'), isTrue);
+      expect(history.last.content.startsWith('m34'), isTrue);
+      final int total = history.fold<int>(
+        0,
+        (sum, m) => sum + m.content.length,
+      );
+      expect(total, 12000);
     });
   });
 

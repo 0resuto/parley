@@ -9,6 +9,10 @@ import 'package:parley/services/llm/llm_client.dart';
 /// Mirrors the real repository without touching drift, so widget tests
 /// have no pending stream timers. Titles, ordering and [historyForLlm]
 /// trimming match the real implementation.
+///
+/// Limitation: the `watch*` methods emit one snapshot ([Stream.value]) and
+/// never react to later mutations, so widget tests cannot observe
+/// reactivity through this fake.
 class FakeChatRepository implements ChatRepository {
   FakeChatRepository({required Clock clock}) : _clock = clock;
 
@@ -43,20 +47,23 @@ class FakeChatRepository implements ChatRepository {
 
   @override
   Future<List<Conversation>> listConversations() async {
-    final List<Conversation> sorted = _conversations.toList()
-      ..sort((a, b) {
-        final int byUpdated = b.updatedAt.compareTo(a.updatedAt);
-        if (byUpdated != 0) {
-          return byUpdated;
-        }
-        return b.id.compareTo(a.id);
-      });
-    return sorted;
+    return _sortedConversations();
   }
 
   @override
   Stream<List<Conversation>> watchConversations() {
-    return Stream.value(_conversations.toList());
+    // (T-17) mirror the real query: updatedAt DESC, id DESC.
+    return Stream.value(_sortedConversations());
+  }
+
+  List<Conversation> _sortedConversations() {
+    return _conversations.toList()..sort((a, b) {
+      final int byUpdated = b.updatedAt.compareTo(a.updatedAt);
+      if (byUpdated != 0) {
+        return byUpdated;
+      }
+      return b.id.compareTo(a.id);
+    });
   }
 
   @override
@@ -95,9 +102,12 @@ class FakeChatRepository implements ChatRepository {
           }
         }
         if (nonBlank == 1) {
-          nextTitle = trimmed.length <= conversationTitleLength
+          // (A-56) mirror the repository: cut on runes, never inside a
+          // surrogate pair.
+          final Runes runes = trimmed.runes;
+          nextTitle = runes.length <= conversationTitleLength
               ? trimmed
-              : trimmed.substring(0, conversationTitleLength);
+              : String.fromCharCodes(runes.take(conversationTitleLength));
         }
       }
     }
@@ -124,23 +134,24 @@ class FakeChatRepository implements ChatRepository {
 
   @override
   Future<List<ChatMessage>> listMessages(int conversationId) async {
-    final List<ChatMessage> rows =
-        _messages.where((m) => m.conversationId == conversationId).toList()
-          ..sort((a, b) {
-            final int byCreated = a.createdAt.compareTo(b.createdAt);
-            if (byCreated != 0) {
-              return byCreated;
-            }
-            return a.id.compareTo(b.id);
-          });
-    return rows;
+    return _sortedMessages(conversationId);
   }
 
   @override
   Stream<List<ChatMessage>> watchMessages(int conversationId) {
-    return Stream.value(
-      _messages.where((m) => m.conversationId == conversationId).toList(),
-    );
+    // (T-17) mirror the real query: createdAt ASC, id ASC, no role filter.
+    return Stream.value(_sortedMessages(conversationId));
+  }
+
+  List<ChatMessage> _sortedMessages(int conversationId) {
+    return _messages.where((m) => m.conversationId == conversationId).toList()
+      ..sort((a, b) {
+        final int byCreated = a.createdAt.compareTo(b.createdAt);
+        if (byCreated != 0) {
+          return byCreated;
+        }
+        return a.id.compareTo(b.id);
+      });
   }
 
   @override
@@ -149,21 +160,8 @@ class FakeChatRepository implements ChatRepository {
     final List<ChatMessage> usable = all
         .where((m) => m.role != ChatRole.event)
         .toList();
-    final List<ChatMessage> window = usable.length <= chatHistoryMaxMessages
-        ? usable
-        : usable.sublist(usable.length - chatHistoryMaxMessages);
-    int total = 0;
-    for (final ChatMessage message in window) {
-      total += message.content.length;
-    }
-    int drop = 0;
-    while (drop < window.length && total > chatHistoryMaxChars) {
-      total -= window[drop].content.length;
-      drop++;
-    }
-    final List<ChatMessage> trimmed = drop == 0 ? window : window.sublist(drop);
     return [
-      for (final ChatMessage message in trimmed)
+      for (final ChatMessage message in trimHistoryForLlm(usable))
         LlmMessage(
           role: message.role == ChatRole.user
               ? LlmRole.user
@@ -205,7 +203,17 @@ class FakeChatRepository implements ChatRepository {
   Future<void> updateMessageContent(int id, String content) async {
     for (int i = 0; i < _messages.length; i++) {
       if (_messages[i].id == id) {
-        _messages[i] = _messages[i].copyWith(content: content);
+        final ChatMessage updated = _messages[i].copyWith(content: content);
+        _messages[i] = updated;
+        // (A-57) mirror the repository: the owning conversation is bumped.
+        final int index = _conversations.indexWhere(
+          (c) => c.id == updated.conversationId,
+        );
+        if (index != -1) {
+          _conversations[index] = _conversations[index].copyWith(
+            updatedAt: _clock.now().toUtc(),
+          );
+        }
         return;
       }
     }
