@@ -203,6 +203,10 @@ class WordJudgeResult {
 }
 
 /// Validates a decoded word-judge JSON object.
+///
+/// Each entry is validated on its own: a malformed entry is skipped so
+/// the valid ratings still apply (SPEC 5.6). Only a `ratings` value that
+/// is not a list makes the whole response invalid.
 WordJudgeResult validateWordJudgeJson(Map<String, dynamic> json) {
   final Object? ratings = json['ratings'];
   if (ratings is! List) {
@@ -211,7 +215,7 @@ WordJudgeResult validateWordJudgeJson(Map<String, dynamic> json) {
   final List<WordJudgeRating> parsed = [];
   for (final Object? entry in ratings) {
     if (entry is! Map) {
-      throw const InvalidResponseFailure();
+      continue;
     }
     final Map<String, dynamic> map = entry is Map<String, dynamic>
         ? entry
@@ -220,17 +224,17 @@ WordJudgeResult validateWordJudgeJson(Map<String, dynamic> json) {
     final Object? rating = map['rating'];
     final Object? reason = map['reason'];
     if (text is! String || text.trim().isEmpty) {
-      throw const InvalidResponseFailure();
+      continue;
     }
     if (rating is! String) {
-      throw const InvalidResponseFailure();
+      continue;
     }
     final JudgeRating? parsedRating = JudgeRating.tryParse(rating);
     if (parsedRating == null) {
-      throw const InvalidResponseFailure();
+      continue;
     }
     if (reason is! String || reason.trim().isEmpty) {
-      throw const InvalidResponseFailure();
+      continue;
     }
     parsed.add(
       WordJudgeRating(text: text, rating: parsedRating, reason: reason),
@@ -241,20 +245,22 @@ WordJudgeResult validateWordJudgeJson(Map<String, dynamic> json) {
 
 /// Runs a JSON job through [client] with the one-retry rule (SPEC 6.7).
 ///
-/// Calls `complete`, extracts and validates the JSON. On
-/// [InvalidResponseFailure] retries once with the extra user line
-/// `Return ONLY the JSON object.` Other failures propagate without retry.
+/// Calls `complete`, extracts and validates the JSON. On an
+/// [InvalidResponseFailure] from the extraction or the validator retries
+/// once with the extra user line `Return ONLY the JSON object.`
+/// A failure from `complete` itself (an HTTP 400/404 included) propagates
+/// without retry: the same request would fail the same way (A-20).
 Future<T> completeJson<T>(
   LlmClient client,
   List<LlmMessage> messages,
   T Function(Map<String, dynamic>) validator, {
   double temperature = 0.2,
 }) async {
+  final String first = await client.complete(
+    messages,
+    temperature: temperature,
+  );
   try {
-    final String first = await client.complete(
-      messages,
-      temperature: temperature,
-    );
     return await _parseJson(first, validator);
   } on InvalidResponseFailure {
     // Fall through to the single retry below.

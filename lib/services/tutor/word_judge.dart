@@ -194,11 +194,15 @@ class WordJudge {
             ReviewSource.chat,
           );
         } catch (e) {
-          debugPrint('word judge rating failed: $e');
+          if (kDebugMode) {
+            debugPrint('word judge rating failed: $e');
+          }
         }
       }
     } catch (e) {
-      debugPrint('word judge failed: $e');
+      if (kDebugMode) {
+        debugPrint('word judge failed: $e');
+      }
     }
   }
 

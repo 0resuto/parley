@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import 'package:parley/core/constants.dart';
 import 'package:parley/core/failures.dart';
+import 'package:parley/services/llm/llm_dio.dart';
 
 /// Lists model ids from an OpenAI-format `GET <base>/models` endpoint.
 ///
@@ -45,7 +46,7 @@ List<String> parseModelIds(Object? data) {
 /// contain the API key.
 class ModelCatalog {
   ModelCatalog({Dio? dio, Future<void> Function(Duration)? delay})
-    : _dio = dio ?? Dio(),
+    : _dio = dio ?? createLlmDio(),
       _delay = delay ?? Future.delayed;
 
   final Dio _dio;
@@ -71,7 +72,13 @@ class ModelCatalog {
       try {
         final Response<dynamic> response = await _dio.get(
           url,
-          options: Options(headers: headers, responseType: ResponseType.json),
+          options: Options(
+            headers: headers,
+            // Plain keeps Dio's JSON transformer out of the way: a broken
+            // 200 body must become InvalidResponseFailure, not a
+            // DioException that looks like a network error (A-18).
+            responseType: ResponseType.plain,
+          ),
         );
         return parseModelIds(response.data);
       } on DioException catch (e) {

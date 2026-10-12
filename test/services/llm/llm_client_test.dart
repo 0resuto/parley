@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/core/constants.dart';
 import 'package:parley/core/failures.dart';
 import 'package:parley/services/llm/llm_client.dart';
+import 'package:parley/services/llm/llm_dio.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
 
@@ -112,6 +113,11 @@ class NetworkError {
   final DioExceptionType type;
 }
 
+/// A request the adapter never answers (A-12 timeout tests).
+class Hang {
+  const Hang();
+}
+
 Canned ok(String content) {
   return Canned(
     200,
@@ -143,7 +149,10 @@ class ScriptedAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is Canned) {
       return ResponseBody.fromString(
         next.body,
@@ -155,6 +164,9 @@ class ScriptedAdapter implements HttpClientAdapter {
     }
     if (next is NetworkError) {
       throw DioException(requestOptions: options, type: next.type);
+    }
+    if (next is Hang) {
+      return Completer<ResponseBody>().future;
     }
     throw StateError('Bad script entry: $next');
   }
@@ -170,7 +182,7 @@ void main() {
   late ScriptedAdapter adapter;
   late DioLlmClient client;
 
-  void setUpClient(List<Object> script) {
+  void setUpClient(List<Object> script, {Duration? completeTimeout}) {
     settings = FakeSettings();
     keys = FakeSecureKeyStore();
     delays = [];
@@ -183,6 +195,7 @@ void main() {
       delay: (Duration d) async {
         delays.add(d);
       },
+      completeTimeout: completeTimeout,
     );
   }
 
@@ -371,6 +384,17 @@ void main() {
     expect(delays, isEmpty);
   });
 
+  test('broken JSON on 200 throws InvalidResponse without retry', () async {
+    setUpClient([Canned(200, 'not json {')]);
+
+    await expectLater(
+      client.complete(messages()),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+    expect(adapter.requests, hasLength(1));
+    expect(delays, isEmpty);
+  });
+
   test('missing content throws InvalidResponse', () async {
     setUpClient([
       Canned(
@@ -419,5 +443,48 @@ void main() {
     keys.apiKey = secret;
     await client.complete(messages());
     expect(adapter.requests.single.headers['Authorization'], contains(secret));
+  });
+
+  group('timeouts (A-12)', () {
+    test('createLlmDio carries the timeout constants', () {
+      final Dio dio = createLlmDio();
+
+      expect(dio.options.connectTimeout, llmConnectTimeout);
+      expect(dio.options.sendTimeout, llmSendTimeout);
+      expect(dio.options.receiveTimeout, llmReceiveTimeout);
+
+      dio.close(force: true);
+    });
+
+    test(
+      'a request that never answers times out, retries, then fails',
+      () async {
+        setUpClient([
+          const Hang(),
+          const Hang(),
+          const Hang(),
+        ], completeTimeout: const Duration(milliseconds: 20));
+
+        await expectLater(
+          client.complete(messages()),
+          throwsA(isA<ServerFailure>()),
+        );
+        expect(adapter.requests, hasLength(3));
+        expect(delays, [llmRetryDelayFirst, llmRetryDelaySecond]);
+      },
+    );
+
+    test('a timeout then a normal answer returns content', () async {
+      setUpClient([
+        const Hang(),
+        ok('late'),
+      ], completeTimeout: const Duration(milliseconds: 20));
+
+      final String result = await client.complete(messages());
+
+      expect(result, 'late');
+      expect(adapter.requests, hasLength(2));
+      expect(delays, [llmRetryDelayFirst]);
+    });
   });
 }

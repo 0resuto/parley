@@ -49,7 +49,10 @@ class ScriptedAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is Canned) {
       return ResponseBody.fromString(
         next.body,
@@ -261,6 +264,14 @@ void main() {
       setUpCatalog([const Canned(200, '{"object":"list"}')]);
 
       await expectLater(fetch(), throwsA(isA<InvalidResponseFailure>()));
+    });
+
+    test('broken JSON on 200 throws InvalidResponse without retry', () async {
+      setUpCatalog([const Canned(200, 'not json {')]);
+
+      await expectLater(fetch(), throwsA(isA<InvalidResponseFailure>()));
+      expect(adapter.requests, hasLength(1));
+      expect(delays, isEmpty);
     });
 
     test('api key never appears in any exception message', () async {

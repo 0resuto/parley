@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
 import 'package:parley/core/constants.dart';
 import 'package:parley/core/failures.dart';
+import 'package:parley/services/llm/llm_dio.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
 
@@ -125,15 +127,21 @@ class DioLlmClient implements LlmClient {
     required SecureKeyStore keys,
     Dio? dio,
     Future<void> Function(Duration)? delay,
+    Duration? completeTimeout,
   }) : _settings = settings,
        _keys = keys,
-       _dio = dio ?? Dio(),
-       _delay = delay ?? Future.delayed;
+       _dio = dio ?? createLlmDio(),
+       _delay = delay ?? Future.delayed,
+       _completeTimeout = completeTimeout ?? llmCompleteTimeout;
 
   final SettingsRepository _settings;
   final SecureKeyStore _keys;
   final Dio _dio;
   final Future<void> Function(Duration) _delay;
+
+  /// Overall cap for one non-streaming request (A-12); Dio's receive
+  /// timeout only fires between body chunks.
+  final Duration _completeTimeout;
 
   /// Once a tools request gets HTTP 400 mentioning "tool", all further
   /// streaming (and only streaming) requests in this session go
@@ -166,12 +174,26 @@ class DioLlmClient implements LlmClient {
 
     for (int attempt = 0; ; attempt++) {
       try {
-        final Response<dynamic> response = await _dio.post(
-          url,
-          data: body,
-          options: Options(headers: headers, responseType: ResponseType.json),
-        );
+        final Response<dynamic> response = await _dio
+            .post(
+              url,
+              data: body,
+              options: Options(
+                headers: headers,
+                // Plain keeps Dio's JSON transformer out of the way: a
+                // broken 200 body must become InvalidResponseFailure, not
+                // a DioException that looks like a network error (A-18).
+                responseType: ResponseType.plain,
+              ),
+            )
+            .timeout(_completeTimeout);
         return _parseComplete(response.data);
+      } on TimeoutException {
+        if (attempt < llmMaxRetries) {
+          await _delay(attempt == 0 ? llmRetryDelayFirst : llmRetryDelaySecond);
+          continue;
+        }
+        throw const ServerFailure();
       } on DioException catch (e) {
         final int? status = e.response?.statusCode;
         if (status == 401 || status == 403) {
@@ -326,94 +348,69 @@ class DioLlmClient implements LlmClient {
       final Map<int, _ToolAccum> toolAccum = {};
       String buffer = '';
       bool doneSeen = false;
+      String? finishReason;
 
       try {
         final Stream<String> textStream = const Utf8Decoder(
           allowMalformed: true,
         ).bind(responseBody.stream.cast<List<int>>());
+        // SSE state: consecutive `data:` fields of one event are joined
+        // with newlines and dispatched on the blank line (A-21).
+        final List<String> dataLines = <String>[];
+        final List<String> pendingTexts = <String>[];
+
+        void dispatchPayload(String payload) {
+          if (payload.trim() == '[DONE]') {
+            doneSeen = true;
+            return;
+          }
+          final ({List<String> texts, String? finishReason}) parsed =
+              _parseSsePayload(payload, toolAccum);
+          if (parsed.finishReason != null) {
+            finishReason = parsed.finishReason;
+          }
+          pendingTexts.addAll(parsed.texts);
+        }
+
+        void handleSseLine(String line) {
+          if (line.isEmpty) {
+            if (dataLines.isNotEmpty) {
+              final String payload = dataLines.join('\n');
+              dataLines.clear();
+              dispatchPayload(payload);
+            }
+            return;
+          }
+          if (line.startsWith(':')) {
+            return;
+          }
+          if (!line.startsWith('data:')) {
+            return;
+          }
+          String value = line.substring(5);
+          if (value.startsWith(' ')) {
+            value = value.substring(1);
+          }
+          dataLines.add(value);
+        }
+
         await for (final String chunk in textStream) {
           buffer += chunk;
           int newline;
           while ((newline = buffer.indexOf('\n')) != -1) {
-            final String line = buffer.substring(0, newline);
+            String line = buffer.substring(0, newline);
             buffer = buffer.substring(newline + 1);
-            // Process one SSE line; TextDelta events are yielded here.
-            String trimmed = line;
-            if (trimmed.endsWith('\r')) {
-              trimmed = trimmed.substring(0, trimmed.length - 1);
+            if (line.endsWith('\r')) {
+              line = line.substring(0, line.length - 1);
             }
-            if (trimmed.isEmpty || trimmed.startsWith(':')) {
-              continue;
+            handleSseLine(line);
+            while (pendingTexts.isNotEmpty) {
+              firstEvent = true;
+              yield TextDelta(pendingTexts.removeAt(0));
             }
-            if (!trimmed.startsWith('data:')) {
-              continue;
-            }
-            final String payload = trimmed.substring(5).trim();
-            if (payload.isEmpty) {
-              continue;
-            }
-            if (payload == '[DONE]') {
-              doneSeen = true;
+            if (doneSeen) {
               buffer = '';
               break;
-            }
-            Map<String, dynamic>? decoded;
-            try {
-              decoded = jsonDecode(payload) as Map<String, dynamic>;
-            } catch (_) {
-              continue;
-            }
-            final Object? choicesObj = decoded['choices'];
-            if (choicesObj is! List || choicesObj.isEmpty) {
-              continue;
-            }
-            final Object? firstObj = choicesObj.first;
-            if (firstObj is! Map<String, dynamic> &&
-                firstObj is! Map<dynamic, dynamic>) {
-              continue;
-            }
-            final Map<dynamic, dynamic> first =
-                firstObj as Map<dynamic, dynamic>;
-            final Object? deltaObj = first['delta'];
-            if (deltaObj is! Map<dynamic, dynamic>) {
-              continue;
-            }
-            final Map<dynamic, dynamic> delta = deltaObj;
-            final Object? content = delta['content'];
-            if (content is String && content.isNotEmpty) {
-              firstEvent = true;
-              yield TextDelta(content);
-            }
-            final Object? callsObj = delta['tool_calls'];
-            if (callsObj is List) {
-              for (final Object? entry in callsObj) {
-                if (entry is! Map<dynamic, dynamic>) {
-                  continue;
-                }
-                final Map<dynamic, dynamic> call = entry;
-                int index = 0;
-                if (call['index'] is int) {
-                  index = call['index'] as int;
-                }
-                final _ToolAccum accum = toolAccum.putIfAbsent(
-                  index,
-                  () => _ToolAccum(),
-                );
-                if (call['id'] is String && (call['id'] as String).isNotEmpty) {
-                  accum.id = call['id'] as String;
-                }
-                if (call['function'] is Map) {
-                  final Map<dynamic, dynamic> function =
-                      call['function'] as Map;
-                  if (function['name'] is String &&
-                      (function['name'] as String).isNotEmpty) {
-                    accum.name = function['name'] as String;
-                  }
-                  if (function['arguments'] is String) {
-                    accum.args.write(function['arguments'] as String);
-                  }
-                }
-              }
             }
           }
           if (doneSeen) {
@@ -421,37 +418,24 @@ class DioLlmClient implements LlmClient {
           }
         }
         if (!doneSeen && buffer.isNotEmpty) {
-          final String leftover = buffer.trim();
+          String line = buffer;
           buffer = '';
-          if (leftover.startsWith('data:')) {
-            final String payload = leftover.substring(5).trim();
-            if (payload == '[DONE]') {
-              doneSeen = true;
-            } else if (payload.isNotEmpty) {
-              try {
-                final Map<String, dynamic> decoded =
-                    jsonDecode(payload) as Map<String, dynamic>;
-                final List<dynamic>? choices =
-                    decoded['choices'] as List<dynamic>?;
-                if (choices != null && choices.isNotEmpty) {
-                  final Object? firstObj = choices.first;
-                  if (firstObj is Map<dynamic, dynamic>) {
-                    final Map<dynamic, dynamic> first = firstObj;
-                    final Object? deltaObj = first['delta'];
-                    if (deltaObj is Map<dynamic, dynamic>) {
-                      final Map<dynamic, dynamic> delta = deltaObj;
-                      final Object? content = delta['content'];
-                      if (content is String && content.isNotEmpty) {
-                        firstEvent = true;
-                        yield TextDelta(content);
-                      }
-                    }
-                  }
-                }
-              } catch (_) {
-                // Ignore a trailing malformed line.
-              }
-            }
+          if (line.endsWith('\r')) {
+            line = line.substring(0, line.length - 1);
+          }
+          handleSseLine(line);
+          while (pendingTexts.isNotEmpty) {
+            firstEvent = true;
+            yield TextDelta(pendingTexts.removeAt(0));
+          }
+        }
+        if (!doneSeen && dataLines.isNotEmpty) {
+          final String payload = dataLines.join('\n');
+          dataLines.clear();
+          dispatchPayload(payload);
+          while (pendingTexts.isNotEmpty) {
+            firstEvent = true;
+            yield TextDelta(pendingTexts.removeAt(0));
           }
         }
       } catch (e) {
@@ -496,6 +480,20 @@ class DioLlmClient implements LlmClient {
         throw const ServerFailure();
       }
 
+      // A truncated or filtered reply is not a usable answer: the text
+      // that arrived is incomplete, so surface it as an invalid response
+      // (the UI offers Retry) instead of saving it as a full reply (A-16).
+      if (finishReason == 'length' || finishReason == 'content_filter') {
+        throw const InvalidResponseFailure();
+      }
+
+      // A 200 whose body carries no parseable SSE events (a JSON error
+      // body, HTML or an empty stream) must not surface as a silent empty
+      // reply: the user would see nothing at all (A-17).
+      if (!firstEvent && toolAccum.isEmpty) {
+        throw const InvalidResponseFailure();
+      }
+
       final List<int> indexes = toolAccum.keys.toList()..sort();
       for (final int index in indexes) {
         final _ToolAccum accum = toolAccum[index]!;
@@ -513,6 +511,76 @@ class DioLlmClient implements LlmClient {
       yield const StreamDone();
       return;
     }
+  }
+
+  /// Parses one SSE event payload (the `data:` fields joined with `\n`).
+  ///
+  /// Returns the text deltas to yield and the `finish_reason` when the
+  /// chunk carries one; tool-call fragments accumulate into [toolAccum]
+  /// by index. Malformed payloads return empty results (A-21).
+  ({List<String> texts, String? finishReason}) _parseSsePayload(
+    String payload,
+    Map<int, _ToolAccum> toolAccum,
+  ) {
+    final List<String> texts = <String>[];
+    Map<String, dynamic>? decoded;
+    try {
+      decoded = jsonDecode(payload) as Map<String, dynamic>;
+    } catch (_) {
+      return (texts: texts, finishReason: null);
+    }
+    final Object? choicesObj = decoded['choices'];
+    if (choicesObj is! List || choicesObj.isEmpty) {
+      return (texts: texts, finishReason: null);
+    }
+    final Object? firstObj = choicesObj.first;
+    if (firstObj is! Map<dynamic, dynamic>) {
+      return (texts: texts, finishReason: null);
+    }
+    final Map<dynamic, dynamic> first = firstObj;
+    final Object? finish = first['finish_reason'];
+    final String? finishReason = finish is String && finish.isNotEmpty
+        ? finish
+        : null;
+    final Object? deltaObj = first['delta'];
+    if (deltaObj is Map<dynamic, dynamic>) {
+      final Map<dynamic, dynamic> delta = deltaObj;
+      final Object? content = delta['content'];
+      if (content is String && content.isNotEmpty) {
+        texts.add(content);
+      }
+      final Object? callsObj = delta['tool_calls'];
+      if (callsObj is List) {
+        for (final Object? entry in callsObj) {
+          if (entry is! Map<dynamic, dynamic>) {
+            continue;
+          }
+          final Map<dynamic, dynamic> call = entry;
+          int index = 0;
+          if (call['index'] is int) {
+            index = call['index'] as int;
+          }
+          final _ToolAccum accum = toolAccum.putIfAbsent(
+            index,
+            () => _ToolAccum(),
+          );
+          if (call['id'] is String && (call['id'] as String).isNotEmpty) {
+            accum.id = call['id'] as String;
+          }
+          if (call['function'] is Map) {
+            final Map<dynamic, dynamic> function = call['function'] as Map;
+            if (function['name'] is String &&
+                (function['name'] as String).isNotEmpty) {
+              accum.name = function['name'] as String;
+            }
+            if (function['arguments'] is String) {
+              accum.args.write(function['arguments'] as String);
+            }
+          }
+        }
+      }
+    }
+    return (texts: texts, finishReason: finishReason);
   }
 
   /// Reads an error [ResponseBody] stream to a string for the 400

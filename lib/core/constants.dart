@@ -28,4 +28,13 @@ const int llmMaxRetries = 2;
 const Duration llmRetryDelayFirst = Duration(seconds: 1);
 const Duration llmRetryDelaySecond = Duration(seconds: 3);
 
+/// HTTP timeouts for LLM requests (A-12): a stalled connection must fail
+/// instead of hanging the app (a stuck `complete` would keep the tutor
+/// scheduler "running" forever). Receive allows slow first tokens from
+/// local servers; the overall cap bounds trickling non-streaming bodies.
+const Duration llmConnectTimeout = Duration(seconds: 15);
+const Duration llmSendTimeout = Duration(seconds: 30);
+const Duration llmReceiveTimeout = Duration(seconds: 60);
+const Duration llmCompleteTimeout = Duration(seconds: 120);
+
 const int updateRulesMaxRounds = 2;

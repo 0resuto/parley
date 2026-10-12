@@ -121,7 +121,10 @@ class StreamScriptedAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is SseOk) {
       final List<int> bytes = utf8.encode(next.body);
       final List<Uint8List> chunks = [];
@@ -228,6 +231,12 @@ String sseToolArgs({required int index, required String argsPart}) => sseJson({
 
 const String sseDone = 'data: [DONE]\n\n';
 
+String sseFinish(String reason) => sseJson({
+  'choices': [
+    {'delta': <String, dynamic>{}, 'finish_reason': reason},
+  ],
+});
+
 void main() {
   late StreamFakeSettings settings;
   late StreamFakeKeys keys;
@@ -299,6 +308,32 @@ void main() {
     final List<LlmEvent> events = await collect(client.streamChat(messages()));
 
     expect(events.whereType<TextDelta>().map((e) => e.text).join(), 'hi there');
+    expect(events.last, isA<StreamDone>());
+  });
+
+  test('multi-line data fields are joined into one event', () async {
+    final String body =
+        'data: {"choices":[\n'
+        'data: {"delta":{"content":"joined"},"finish_reason":null}]}\n\n'
+        '$sseDone';
+    setUpClient([SseOk(body)]);
+
+    final List<LlmEvent> events = await collect(client.streamChat(messages()));
+
+    expect(events.whereType<TextDelta>().single.text, 'joined');
+    expect(events.last, isA<StreamDone>());
+  });
+
+  test('multi-line data with a trailing [DONE] still finishes', () async {
+    final String body =
+        'data: {"choices":[\n'
+        'data: {"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n'
+        'data: [DONE]\n\n';
+    setUpClient([SseOk(body)]);
+
+    final List<LlmEvent> events = await collect(client.streamChat(messages()));
+
+    expect(events.whereType<TextDelta>().single.text, 'hi');
     expect(events.last, isA<StreamDone>());
   });
 
@@ -374,6 +409,165 @@ void main() {
     expect((received.single as TextDelta).text, 'partial ');
     expect(adapter.requests, hasLength(1));
     expect(delays, isEmpty);
+  });
+
+  test('finish_reason length surfaces InvalidResponse', () async {
+    setUpClient([
+      SseOk('${sseText('truncated ')}${sseFinish('length')}$sseDone'),
+    ]);
+
+    final Stream<LlmEvent> stream = client.streamChat(messages());
+    final List<LlmEvent> received = [];
+    await expectLater(() async {
+      await for (final LlmEvent event in stream) {
+        received.add(event);
+      }
+    }(), throwsA(isA<InvalidResponseFailure>()));
+    expect(received, hasLength(1));
+    expect((received.single as TextDelta).text, 'truncated ');
+    expect(adapter.requests, hasLength(1));
+    expect(delays, isEmpty);
+  });
+
+  test('finish_reason content_filter surfaces InvalidResponse', () async {
+    setUpClient([
+      SseOk('${sseText('filtered ')}${sseFinish('content_filter')}$sseDone'),
+    ]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+    expect(adapter.requests, hasLength(1));
+    expect(delays, isEmpty);
+  });
+
+  test('finish_reason on a trailing line without newline is checked', () async {
+    final String trailing = jsonEncode({
+      'choices': [
+        {'delta': <String, dynamic>{}, 'finish_reason': 'length'},
+      ],
+    });
+    setUpClient([SseOk('${sseText('part')}data: $trailing')]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+  });
+
+  test('finish_reason stop and tool_calls are not errors', () async {
+    setUpClient([SseOk('${sseText('ok')}${sseFinish('stop')}$sseDone')]);
+
+    final List<LlmEvent> events = await collect(client.streamChat(messages()));
+    expect(events.whereType<TextDelta>().single.text, 'ok');
+    expect(events.last, isA<StreamDone>());
+
+    setUpClient([
+      SseOk(
+        '${sseToolFirst(index: 0, id: 'call_1', name: 'update_rules', argsPart: '{}')}'
+        '${sseFinish('tool_calls')}$sseDone',
+      ),
+    ]);
+
+    final List<LlmEvent> toolEvents = await collect(
+      client.streamChat(
+        messages(),
+        tools: const [
+          {
+            'type': 'function',
+            'function': {'name': 'update_rules'},
+          },
+        ],
+      ),
+    );
+    expect(toolEvents.whereType<ToolCallRequest>(), hasLength(1));
+    expect(toolEvents.last, isA<StreamDone>());
+  });
+
+  test('a 200 with a non-SSE JSON body is an invalid response', () async {
+    setUpClient([
+      SseOk(
+        jsonEncode({
+          'choices': [
+            {
+              'message': {'content': 'not a stream'},
+            },
+          ],
+        }),
+      ),
+    ]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+    expect(adapter.requests, hasLength(1));
+    expect(delays, isEmpty);
+  });
+
+  test('a 200 with an empty body is an invalid response', () async {
+    setUpClient([SseOk('')]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+    expect(adapter.requests, hasLength(1));
+  });
+
+  test('a [DONE]-only stream with no content is an invalid response', () async {
+    setUpClient([SseOk(sseDone)]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+  });
+
+  test(
+    'a stream that ends without [DONE] still finishes with its text',
+    () async {
+      setUpClient([SseOk('${sseText('no done')}${sseText(' marker')}')]);
+
+      final List<LlmEvent> events = await collect(
+        client.streamChat(messages()),
+      );
+
+      expect(
+        events.whereType<TextDelta>().map((e) => e.text).join(),
+        'no done marker',
+      );
+      expect(events.last, isA<StreamDone>());
+      expect(adapter.requests, hasLength(1));
+      expect(delays, isEmpty);
+    },
+  );
+
+  test('a broken JSON data line between deltas is skipped', () async {
+    setUpClient([
+      SseOk(
+        '${sseText('before ')}data: {not json}\n\n${sseText('after')}$sseDone',
+      ),
+    ]);
+
+    final List<LlmEvent> events = await collect(client.streamChat(messages()));
+
+    expect(
+      events.whereType<TextDelta>().map((e) => e.text).join(),
+      'before after',
+    );
+    expect(events.last, isA<StreamDone>());
+  });
+
+  test('a stream whose only data line is broken JSON is invalid', () async {
+    setUpClient([SseOk('data: {not json}\n\n')]);
+
+    await expectLater(
+      client.streamChat(messages()).toList(),
+      throwsA(isA<InvalidResponseFailure>()),
+    );
+    expect(adapter.requests, hasLength(1));
   });
 
   test('disconnect before first event retries then succeeds', () async {

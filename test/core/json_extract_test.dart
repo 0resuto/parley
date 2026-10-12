@@ -16,7 +16,10 @@ class FakeLlmClient implements LlmClient {
     double temperature = 0.2,
   }) async {
     calls.add(messages);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is String) {
       return next;
     }
@@ -291,42 +294,42 @@ void main() {
       );
     });
 
-    test('invalid rating enum value throws', () {
-      expect(
-        () => validateWordJudgeJson({
-          'ratings': [
-            {'text': 'cow', 'rating': 'perfect', 'reason': 'r'},
-          ],
-        }),
-        throwsA(isA<InvalidResponseFailure>()),
-      );
+    test('invalid rating enum value is skipped', () {
+      final WordJudgeResult result = validateWordJudgeJson({
+        'ratings': [
+          {'text': 'cow', 'rating': 'perfect', 'reason': 'r'},
+        ],
+      });
+
+      expect(result.ratings, isEmpty);
     });
 
-    test('missing text, rating or reason throws', () {
-      expect(
-        () => validateWordJudgeJson({
-          'ratings': [
-            {'rating': 'good', 'reason': 'r'},
-          ],
-        }),
-        throwsA(isA<InvalidResponseFailure>()),
-      );
-      expect(
-        () => validateWordJudgeJson({
-          'ratings': [
-            {'text': 'cow', 'reason': 'r'},
-          ],
-        }),
-        throwsA(isA<InvalidResponseFailure>()),
-      );
-      expect(
-        () => validateWordJudgeJson({
-          'ratings': [
-            {'text': 'cow', 'rating': 'good'},
-          ],
-        }),
-        throwsA(isA<InvalidResponseFailure>()),
-      );
+    test('missing text, rating or reason is skipped', () {
+      for (final Map<String, dynamic> entry in [
+        {'rating': 'good', 'reason': 'r'},
+        {'text': 'cow', 'reason': 'r'},
+        {'text': 'cow', 'rating': 'good'},
+      ]) {
+        final WordJudgeResult result = validateWordJudgeJson({
+          'ratings': [entry],
+        });
+        expect(result.ratings, isEmpty);
+      }
+    });
+
+    test('valid entries survive malformed ones', () {
+      final WordJudgeResult result = validateWordJudgeJson({
+        'ratings': [
+          'not a map',
+          {'text': 'cow', 'rating': 'perfect', 'reason': 'r'},
+          {'text': 'barn', 'rating': 'good', 'reason': 'used well'},
+          {'text': 'milk', 'rating': 'easy'},
+        ],
+      });
+
+      expect(result.ratings, hasLength(1));
+      expect(result.ratings.single.text, 'barn');
+      expect(result.ratings.single.rating, JudgeRating.good);
     });
   });
 
@@ -396,6 +399,19 @@ void main() {
         throwsA(isA<InvalidResponseFailure>()),
       );
       expect(client.calls, hasLength(2));
+    });
+
+    test('a transport failure from complete is not retried', () async {
+      final FakeLlmClient client = FakeLlmClient([
+        const InvalidResponseFailure(), // e.g. HTTP 400/404
+        '{"lemma":"cow","translation":"корова","pos":"noun"}',
+      ]);
+
+      await expectLater(
+        completeJson(client, baseMessages(), validateTranslateJson),
+        throwsA(isA<InvalidResponseFailure>()),
+      );
+      expect(client.calls, hasLength(1));
     });
 
     test('word judge flows through completeJson', () async {

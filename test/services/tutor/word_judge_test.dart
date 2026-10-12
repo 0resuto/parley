@@ -79,7 +79,10 @@ class FakeJudgeLlm implements LlmClient {
     double temperature = 0.2,
   }) async {
     calls.add(messages);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is String) {
       return next;
     }
