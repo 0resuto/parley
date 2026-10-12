@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 class AboutSection extends StatelessWidget {
   const AboutSection({super.key});
 
+  // (A-63) Kept in sync with `version:` in pubspec.yaml by a test.
   static const String appVersion = '0.1.0';
 
   @override
@@ -21,7 +22,7 @@ class AboutSection extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.info_outline),
           title: Text('Parley'),
-          subtitle: Text('Version 0.1.0'),
+          subtitle: Text('Version $appVersion'),
         ),
         const ListTile(
           leading: Icon(Icons.menu_book_outlined),

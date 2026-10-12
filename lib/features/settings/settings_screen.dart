@@ -22,7 +22,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  /// Guards the data actions from a second start (A-15).
   bool _busy = false;
+
+  /// True only while the actual export/import work runs; drives the
+  /// progress indicator (the guard also covers pickers and dialogs).
+  bool _working = false;
 
   Future<void> _export() async {
     if (_busy) {
@@ -30,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     setState(() {
       _busy = true;
+      _working = true;
     });
     try {
       final ExportService service = ref.read(exportServiceProvider);
@@ -46,6 +52,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
+          _working = false;
         });
       }
     }
@@ -55,46 +62,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_busy) {
       return;
     }
-    final PickedJsonFile? picked;
-    try {
-      picked = await ref.read(filePickerServiceProvider).pickJsonFile();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read the file.')),
-        );
-      }
-      return;
-    }
-    if (picked == null || !mounted) {
-      return;
-    }
-    final ImportOptions? options = await _askImportOptions();
-    if (options == null || !mounted) {
-      return;
-    }
+    // Busy is set before the picker so a double tap cannot open two
+    // pickers (A-15).
     setState(() {
       _busy = true;
     });
-    ImportSummary? summary;
+    bool pickFailed = false;
     bool invalidFile = false;
     bool failed = false;
+    ImportSummary? summary;
     try {
-      summary = await ref
-          .read(exportServiceProvider)
-          .importJson(picked.content, options: options);
-    } on ExportFormatException {
-      invalidFile = true;
-    } catch (_) {
-      failed = true;
+      PickedJsonFile? picked;
+      try {
+        picked = await ref.read(filePickerServiceProvider).pickJsonFile();
+      } catch (_) {
+        pickFailed = true;
+      }
+      if (!pickFailed && picked != null && mounted) {
+        final ImportOptions? options = await _askImportOptions();
+        if (options != null && mounted) {
+          setState(() {
+            _working = true;
+          });
+          try {
+            summary = await ref
+                .read(exportServiceProvider)
+                .importJson(picked.content, options: options);
+          } on ExportFormatException {
+            invalidFile = true;
+          } catch (_) {
+            failed = true;
+          }
+        }
+      }
     } finally {
       if (mounted) {
         setState(() {
           _busy = false;
+          _working = false;
         });
       }
     }
     if (!mounted) {
+      return;
+    }
+    if (pickFailed) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not read the file.')));
       return;
     }
     if (summary != null) {
@@ -128,37 +143,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_busy) {
       return;
     }
-    final PickedCsvFile? picked;
-    try {
-      picked = await ref.read(filePickerServiceProvider).pickCsvFile();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read the file.')),
-        );
-      }
-      return;
-    }
-    if (picked == null || !mounted) {
-      return;
-    }
+    // Busy is set before the picker so a double tap cannot open two
+    // pickers (A-15).
     setState(() {
       _busy = true;
     });
-    CsvImportSummary? summary;
+    bool pickFailed = false;
     bool failed = false;
+    CsvImportSummary? summary;
     try {
-      summary = await ref.read(csvImporterProvider).importCsv(picked.content);
-    } catch (_) {
-      failed = true;
+      PickedCsvFile? picked;
+      try {
+        picked = await ref.read(filePickerServiceProvider).pickCsvFile();
+      } catch (_) {
+        pickFailed = true;
+      }
+      if (!pickFailed && picked != null && mounted) {
+        setState(() {
+          _working = true;
+        });
+        try {
+          summary = await ref
+              .read(csvImporterProvider)
+              .importCsv(picked.content);
+        } catch (_) {
+          failed = true;
+        }
+      }
     } finally {
       if (mounted) {
         setState(() {
           _busy = false;
+          _working = false;
         });
       }
     }
     if (!mounted) {
+      return;
+    }
+    if (pickFailed) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not read the file.')));
       return;
     }
     if (summary != null) {
@@ -281,7 +307,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy ? null : _importCsv,
             ),
             const AboutSection(),
-            if (_busy) const LinearProgressIndicator(),
+            if (_working) const LinearProgressIndicator(),
           ],
         ),
       ),

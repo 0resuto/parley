@@ -86,6 +86,14 @@ void main() {
     expect(repo.meaningLanguage, 'ru');
   });
 
+  test('meaningLanguage getter normalizes legacy stored values', () async {
+    await prefs.setString('meaning_language', ' DE ');
+    expect(repo.meaningLanguage, 'de');
+
+    await prefs.setString('meaning_language', '   ');
+    expect(repo.meaningLanguage, 'ru');
+  });
+
   test('baseUrl and model are trimmed', () async {
     await repo.setBaseUrl('  https://example.com  ');
     await repo.setModel('  m  ');

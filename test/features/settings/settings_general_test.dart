@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -98,17 +99,34 @@ class FakeSecureKeyStore implements SecureKeyStore {
   FakeSecureKeyStore([this.apiKey]);
 
   String? apiKey;
+  Completer<void>? readGate;
+  bool failWrites = false;
 
   @override
-  Future<String?> readApiKey() async => apiKey;
+  Future<String?> readApiKey() async {
+    // Capture the value as of the call, like a real storage read that
+    // started before later writes.
+    final String? current = apiKey;
+    final Completer<void>? gate = readGate;
+    if (gate != null) {
+      await gate.future;
+    }
+    return current;
+  }
 
   @override
   Future<void> writeApiKey(String apiKey) async {
+    if (failWrites) {
+      throw StateError('secure storage unavailable');
+    }
     this.apiKey = apiKey;
   }
 
   @override
   Future<void> deleteApiKey() async {
+    if (failWrites) {
+      throw StateError('secure storage unavailable');
+    }
     apiKey = null;
   }
 }
@@ -422,6 +440,39 @@ void main() {
       // plain Text (obscured input still carries the value for editing).
       expect(find.widgetWithText(Text, 'secret-123'), findsNothing);
     });
+
+    testWidgets('a slow key load does not clobber typing (A-38)', (
+      WidgetTester tester,
+    ) async {
+      keys.apiKey = 'stored-key';
+      keys.readGate = Completer<void>();
+      await pumpSettings(tester);
+
+      await tester.enterText(find.byKey(const Key('apiKeyField')), 'typed-key');
+      await tester.pumpAndSettle();
+
+      keys.readGate!.complete();
+      await tester.pumpAndSettle();
+
+      final TextField field = tester.widget(
+        find.byKey(const Key('apiKeyField')),
+      );
+      expect(field.controller!.text, 'typed-key');
+      expect(keys.apiKey, 'typed-key');
+    });
+
+    testWidgets(
+      'a failing key write shows an error instead of crashing (A-38)',
+      (WidgetTester tester) async {
+        keys.failWrites = true;
+        await pumpSettings(tester);
+
+        await tester.enterText(find.byKey(const Key('apiKeyField')), 'secret');
+        await tester.pumpAndSettle();
+
+        expect(find.text('Could not save the API key.'), findsOneWidget);
+      },
+    );
   });
 }
 
@@ -444,7 +495,10 @@ class _ScriptedAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is _Canned) {
       return ResponseBody.fromString(
         next.body,

@@ -18,9 +18,12 @@ class AiProviderSection extends ConsumerStatefulWidget {
 }
 
 class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
+  static const String _keySaveFailure = 'Could not save the API key.';
+
   late final TextEditingController _baseUrlController;
   late final TextEditingController _modelController;
   late final TextEditingController _apiKeyController;
+  bool _keyEdited = false;
   bool _testing = false;
   bool _loadingModels = false;
   String? _status;
@@ -37,7 +40,8 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
 
   Future<void> _loadKey() async {
     final String? key = await ref.read(secureKeyStoreProvider).readApiKey();
-    if (mounted) {
+    // Never clobber what the user typed while the read was in flight.
+    if (mounted && !_keyEdited) {
       _apiKeyController.text = key ?? '';
     }
   }
@@ -50,12 +54,26 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
     super.dispose();
   }
 
-  void _onKeyChanged(String value) {
+  Future<void> _onKeyChanged(String value) async {
+    _keyEdited = true;
     final store = ref.read(secureKeyStoreProvider);
-    if (value.isEmpty) {
-      store.deleteApiKey();
-    } else {
-      store.writeApiKey(value);
+    try {
+      if (value.isEmpty) {
+        await store.deleteApiKey();
+      } else {
+        await store.writeApiKey(value);
+      }
+      if (mounted && _status == _keySaveFailure) {
+        setState(() {
+          _status = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _status = _keySaveFailure;
+        });
+      }
     }
   }
 

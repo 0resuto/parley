@@ -106,8 +106,9 @@ class SharedPreferencesSettingsRepository implements SettingsRepository {
       _prefs.getBool(_kContextTranslation) ?? defaultContextTranslation;
 
   @override
-  String get meaningLanguage =>
-      _prefs.getString(_kMeaningLanguage) ?? defaultMeaningLanguage;
+  String get meaningLanguage => normalizeMeaningLanguage(
+    _prefs.getString(_kMeaningLanguage) ?? defaultMeaningLanguage,
+  );
 
   @override
   Future<void> setBaseUrl(String value) =>
