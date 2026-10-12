@@ -185,11 +185,13 @@ class NotesUpdater {
       try {
         first = await _llm.complete(request);
       } catch (e) {
-        debugPrint('notes updater failed: $e');
+        if (kDebugMode) {
+          debugPrint('notes updater failed: $e');
+        }
         return false;
       }
       if (isValidNotesDocument(first)) {
-        return await _commit(chunk, first);
+        return await _commit(chunk, first, base: current);
       }
       if (first.length <= notesLimit) {
         return false;
@@ -202,27 +204,45 @@ class NotesUpdater {
       try {
         second = await _llm.complete(retryRequest);
       } catch (e) {
-        debugPrint('notes updater retry failed: $e');
+        if (kDebugMode) {
+          debugPrint('notes updater retry failed: $e');
+        }
         return false;
       }
       if (!isValidNotesDocument(second)) {
         return false;
       }
-      return await _commit(chunk, second);
+      return await _commit(chunk, second, base: current);
     } catch (e) {
-      debugPrint('notes updater failed: $e');
+      if (kDebugMode) {
+        debugPrint('notes updater failed: $e');
+      }
       return false;
     }
   }
 
   /// Writes [text] and marks [chunk] processed. Never throws.
-  Future<bool> _commit(List<ChatMessage> chunk, String text) async {
+  ///
+  /// Skips the write when notes changed since [base] was read (a manual
+  /// edit landed while the LLM was answering): the chunk stays
+  /// unprocessed and is picked up at the next trigger (A-26).
+  Future<bool> _commit(
+    List<ChatMessage> chunk,
+    String text, {
+    required String base,
+  }) async {
     try {
+      final String latest = await _documents.read(DocumentKind.notes);
+      if (latest != base) {
+        return false;
+      }
       await _documents.write(DocumentKind.notes, text);
       await _chats.markProcessed([for (final ChatMessage m in chunk) m.id]);
       return true;
     } catch (e) {
-      debugPrint('notes updater write failed: $e');
+      if (kDebugMode) {
+        debugPrint('notes updater write failed: $e');
+      }
       return false;
     }
   }

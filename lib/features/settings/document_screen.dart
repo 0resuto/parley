@@ -22,6 +22,7 @@ class DocumentScreen extends ConsumerStatefulWidget {
 class _DocumentScreenState extends ConsumerState<DocumentScreen> {
   final TextEditingController _editController = TextEditingController();
   String _text = '';
+  String _editBase = '';
   List<DocumentVersion> _versions = [];
   bool _loading = true;
   bool _loadFailed = false;
@@ -88,6 +89,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
 
   void _startEdit() {
     _editController.text = _text;
+    _editBase = _text;
     setState(() {
       _editing = true;
     });
@@ -110,6 +112,20 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
       _saving = true;
     });
     try {
+      final String latest = await store.read(widget.kind);
+      if (latest != _editBase) {
+        // The notes updater (or a restore) changed the document while the
+        // editor was open; let an explicit second Save overwrite it (A-26).
+        _editBase = latest;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('The document changed. Save again to overwrite.'),
+            ),
+          );
+        }
+        return;
+      }
       await store.write(widget.kind, next);
       if (!mounted) {
         return;

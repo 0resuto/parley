@@ -50,10 +50,12 @@ class DocumentVersion {
   /// Short single-line preview for history lists.
   String get preview {
     final String single = text.replaceAll('\n', ' ').trim();
-    if (single.length <= 120) {
+    // (A-56) count and cut on runes so a surrogate pair is never split.
+    final Runes runes = single.runes;
+    if (runes.length <= 120) {
       return single;
     }
-    return single.substring(0, 120);
+    return String.fromCharCodes(runes.take(120));
   }
 }
 

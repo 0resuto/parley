@@ -158,6 +158,43 @@ void main() {
       expect(await store.read(DocumentKind.rules), 'v1');
     });
 
+    testWidgets('save warns when the document changed while editing', (
+      WidgetTester tester,
+    ) async {
+      final MemoryDocumentStore store = MemoryDocumentStore(
+        notes: 'old notes',
+        clock: FakeClock(DateTime.utc(2026, 1, 10, 12)),
+      );
+      await _pumpDocument(tester, store, DocumentKind.notes);
+
+      await tester.tap(find.byKey(const Key('documentEditButton')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('documentEditField')),
+        'my edit',
+      );
+      await tester.pumpAndSettle();
+
+      // The notes updater writes in the background while editing.
+      await store.write(DocumentKind.notes, 'background update');
+
+      await tester.tap(find.byKey(const Key('documentSaveButton')));
+      await tester.pumpAndSettle();
+
+      // The first Save is refused and warns instead of clobbering.
+      expect(await store.read(DocumentKind.notes), 'background update');
+      expect(
+        find.text('The document changed. Save again to overwrite.'),
+        findsOneWidget,
+      );
+
+      // An explicit second Save overwrites.
+      await tester.tap(find.byKey(const Key('documentSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(await store.read(DocumentKind.notes), 'my edit');
+    });
+
     testWidgets('settings tutor links open rules and notes', (
       WidgetTester tester,
     ) async {

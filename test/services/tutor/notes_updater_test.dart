@@ -78,7 +78,10 @@ class FakeNotesLlm implements LlmClient {
     double temperature = 0.2,
   }) async {
     calls.add(messages);
-    final Object next = _index < script.length ? script[_index++] : script.last;
+    if (_index >= script.length) {
+      throw StateError('script exhausted');
+    }
+    final Object next = script[_index++];
     if (next is String) {
       return next;
     }
@@ -95,6 +98,23 @@ class FakeNotesLlm implements LlmClient {
     double temperature = 0.8,
   }) {
     throw UnimplementedError();
+  }
+}
+
+/// [FakeNotesLlm] that runs [onComplete] (for example a manual notes edit)
+/// before answering, so tests can race the updater (A-26).
+class EditingNotesLlm extends FakeNotesLlm {
+  EditingNotesLlm(super.script, {required this.onComplete});
+
+  final Future<void> Function() onComplete;
+
+  @override
+  Future<String> complete(
+    List<LlmMessage> messages, {
+    double temperature = 0.2,
+  }) async {
+    await onComplete();
+    return super.complete(messages, temperature: temperature);
   }
 }
 
@@ -202,6 +222,27 @@ void main() {
       expect(wrote, isFalse);
       expect(llm.calls, hasLength(1));
       expect(await documents.read(DocumentKind.notes), 'before');
+      expect(await chats.unprocessedUserCount(), 1);
+    });
+
+    test('a manual edit during the LLM call is not overwritten', () async {
+      await makeConversationWith([
+        (ChatRole.user, 'I like football'),
+        (ChatRole.assistant, 'Tell me more'),
+      ]);
+      await documents.write(DocumentKind.notes, 'old notes');
+      llm = EditingNotesLlm(
+        [validNotes()],
+        onComplete: () async {
+          await documents.write(DocumentKind.notes, 'manual edit');
+        },
+      );
+
+      final bool wrote = await makeUpdater().updateOnce();
+
+      expect(wrote, isFalse);
+      expect(await documents.read(DocumentKind.notes), 'manual edit');
+      // The chunk stays unprocessed for the next trigger.
       expect(await chats.unprocessedUserCount(), 1);
     });
 
@@ -397,6 +438,34 @@ void main() {
       expect(await makeUpdater().updateOnce(), isFalse);
       expect(await chats.unprocessedUserCount(), 1);
       expect(await documents.read(DocumentKind.notes), '');
+    });
+
+    test('validation accepts exactly the limit and rejects one over', () {
+      final String base = validNotes();
+      final String atLimit = base + 'x' * (notesLimit - base.length);
+      expect(atLimit.length, notesLimit);
+      expect(isValidNotesDocument(atLimit), isTrue);
+
+      final String overLimit = '${atLimit}x';
+      expect(overLimit.length, notesLimit + 1);
+      expect(isValidNotesDocument(overLimit), isFalse);
+    });
+
+    test('a result of exactly the limit is written without a retry', () async {
+      await makeConversationWith([
+        (ChatRole.user, 'hello'),
+        (ChatRole.assistant, 'hi'),
+      ]);
+      final String base = validNotes();
+      final String atLimit = base + 'x' * (notesLimit - base.length);
+      llm = FakeNotesLlm([atLimit]);
+
+      final bool wrote = await makeUpdater().updateOnce();
+
+      expect(wrote, isTrue);
+      expect(llm.calls, hasLength(1));
+      expect(await documents.read(DocumentKind.notes), atLimit);
+      expect(await chats.unprocessedUserCount(), 0);
     });
 
     test('validation helper covers the four rules', () {

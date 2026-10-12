@@ -20,6 +20,10 @@ class FileDocumentStore implements DocumentStore {
   final Directory _baseDir;
   final Clock _clock;
 
+  // (T-09) Serializes writes: concurrent callers must not race on the shared
+  // `<name>.md.tmp` path. A failed write does not stall the queue.
+  Future<void> _writeQueue = Future<void>.value();
+
   File _file(DocumentKind kind) => File(p.join(_baseDir.path, kind.fileName));
 
   Directory get _historyDir => Directory(p.join(_baseDir.path, 'history'));
@@ -34,18 +38,34 @@ class FileDocumentStore implements DocumentStore {
   }
 
   @override
-  Future<void> write(DocumentKind kind, String text) async {
+  Future<void> write(DocumentKind kind, String text) {
+    final Future<void> result = _writeQueue.then((_) => _writeNow(kind, text));
+    _writeQueue = result.then((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<void> _writeNow(DocumentKind kind, String text) async {
     final File file = _file(kind);
     if (await file.exists()) {
       final String previous = await file.readAsString();
       await _historyDir.create(recursive: true);
       final DateTime now = _clock.now().toUtc();
       final File target = await _uniqueHistoryFile(kind, now);
-      await target.writeAsString(previous);
+      await _writeAtomic(target, previous);
       await _prune(kind);
     }
     await file.parent.create(recursive: true);
-    await file.writeAsString(text);
+    await _writeAtomic(file, text);
+  }
+
+  /// Writes [text] to [file] through a temp file and a rename.
+  ///
+  /// A crash mid-write leaves either the previous content or the new one,
+  /// never a truncated file (A-25).
+  Future<void> _writeAtomic(File file, String text) async {
+    final File temp = File('${file.path}.tmp');
+    await temp.writeAsString(text, flush: true);
+    await temp.rename(file.path);
   }
 
   @override

@@ -120,6 +120,32 @@ void main() {
     });
   });
 
+  group('DocumentVersion preview', () {
+    test('truncates on runes without splitting a surrogate pair', () {
+      // 119 'a's, then an emoji (2 UTF-16 units): cutting at 120 code units
+      // would keep only the emoji's high surrogate.
+      final DocumentVersion version = DocumentVersion(
+        id: 'rules_1.md',
+        createdAt: initial,
+        text: '${'a' * 119}🚀 and a tail after the limit',
+      );
+
+      final String preview = version.preview;
+      expect(preview, '${'a' * 119}🚀');
+      expect(preview.runes.length, 120);
+    });
+
+    test('short previews are returned unchanged', () {
+      final DocumentVersion version = DocumentVersion(
+        id: 'rules_1.md',
+        createdAt: initial,
+        text: '  line one\nline two  ',
+      );
+
+      expect(version.preview, 'line one line two');
+    });
+  });
+
   group('FileDocumentStore', () {
     late Directory tmp;
 
@@ -229,6 +255,88 @@ void main() {
 
       expect(await s.versions(DocumentKind.rules), hasLength(1));
       expect(await s.versions(DocumentKind.notes), isEmpty);
+    });
+
+    test('write goes through a temp file and leaves no .tmp behind', () async {
+      final s = store(FakeClock(initial));
+
+      await s.write(DocumentKind.rules, 'first');
+      await s.write(DocumentKind.rules, 'second');
+
+      expect(await s.read(DocumentKind.rules), 'second');
+      final List<String> leftovers = tmp
+          .listSync(recursive: true)
+          .whereType<File>()
+          .map((File f) => f.path)
+          .where((String path) => path.endsWith('.tmp'))
+          .toList();
+      expect(leftovers, isEmpty);
+    });
+
+    test('a stale temp file from a crash is replaced and gone', () async {
+      final s = store(FakeClock(initial));
+      await s.write(DocumentKind.rules, 'first');
+      final File stale = File(
+        '${tmp.path}${Platform.pathSeparator}rules.md.tmp',
+      );
+      await stale.writeAsString('partial garbage');
+
+      await s.write(DocumentKind.rules, 'second');
+
+      expect(await s.read(DocumentKind.rules), 'second');
+      expect(stale.existsSync(), isFalse);
+    });
+
+    test('read of a missing document returns empty', () async {
+      final s = store(FakeClock(initial));
+
+      expect(await s.read(DocumentKind.notes), '');
+    });
+
+    test(
+      'concurrent writes keep one whole text and a consistent history',
+      () async {
+        final s = store(FakeClock(initial));
+
+        await Future.wait([
+          s.write(DocumentKind.rules, 'text A'),
+          s.write(DocumentKind.rules, 'text B'),
+        ]);
+
+        final String text = await s.read(DocumentKind.rules);
+        expect(text, anyOf('text A', 'text B'));
+
+        // Sequential semantics: the first write creates no version, the
+        // second versions the first text.
+        final versions = await s.versions(DocumentKind.rules);
+        expect(versions, hasLength(1));
+        expect(versions.single.text, isNot(text));
+
+        final List<String> leftovers = tmp
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((File f) => f.path)
+            .where((String path) => path.endsWith('.tmp'))
+            .toList();
+        expect(leftovers, isEmpty);
+      },
+    );
+
+    test('a failed write leaves the current document intact', () async {
+      final s = store(FakeClock(initial));
+      await s.write(DocumentKind.rules, 'good');
+
+      // A directory where the temp file goes makes the write fail.
+      final Directory blocker = Directory(
+        '${tmp.path}${Platform.pathSeparator}rules.md.tmp',
+      );
+      await blocker.create();
+
+      await expectLater(
+        s.write(DocumentKind.rules, 'bad'),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await s.read(DocumentKind.rules), 'good');
     });
   });
 }
