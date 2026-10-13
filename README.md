@@ -1,7 +1,7 @@
 # Parley
 
 [![CI](https://github.com/0resuto/parley/actions/workflows/ci.yml/badge.svg)](https://github.com/0resuto/parley/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange.svg)
+![Version](https://img.shields.io/badge/version-0.2.0--alpha-orange.svg)
 ![Flutter](https://img.shields.io/badge/Flutter-stable-02569B.svg)
 ![Android](https://img.shields.io/badge/Platform-Android-3DDC84.svg)
 ![Riverpod](https://img.shields.io/badge/State-Riverpod-5C6BC0.svg)
