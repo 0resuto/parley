@@ -64,6 +64,15 @@ dev_dependencies:
   mocktail: ^1.0.5
   build_runner: ^2.15.1
   drift_dev: ^2.35.1
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#E63946"
+  adaptive_icon_foreground: "assets/icon/icon-foreground.png"
+  adaptive_icon_foreground_inset: 0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
