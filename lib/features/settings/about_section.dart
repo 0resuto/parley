@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 /// About section (SPEC 5.10): app version.
 ///
-/// Version matches `pubspec.yaml` (0.1.0). No `package_info` dependency
+/// Version matches `pubspec.yaml` (0.2.0). No `package_info` dependency
 /// is allowed by SPEC 3.1, so the version is a plain constant.
 class AboutSection extends StatelessWidget {
   const AboutSection({super.key});
 
   // (A-63) Kept in sync with `version:` in pubspec.yaml by a test.
-  static const String appVersion = '0.1.0';
+  static const String appVersion = '0.2.0';
 
   @override
   Widget build(BuildContext context) {
