@@ -42,6 +42,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   late final TextEditingController _input;
   late final ScrollController _scroll;
+  late final FocusNode _inputFocus;
+  bool _keyboardVisible = false;
   int? _conversationId;
   String _title = 'Chat';
   bool _starting = true;
@@ -62,6 +64,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     super.initState();
     _input = TextEditingController();
     _scroll = ScrollController();
+    _inputFocus = FocusNode();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(_start);
   }
@@ -70,9 +73,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _chatSubscription?.close();
+    _inputFocus.dispose();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Drops composer focus when the system hides the keyboard.
+  ///
+  /// The Android back button hides the keyboard without moving focus away
+  /// from the field. The field then regains primary focus when a route or
+  /// a bottom sheet closes, which reopens the keyboard (for example after
+  /// adding a word from the chat).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool visible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    if (_keyboardVisible && !visible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _inputFocus.hasFocus) {
+          _inputFocus.unfocus();
+        }
+      });
+    }
+    _keyboardVisible = visible;
   }
 
   /// Listens to the controller of [id] (and stops listening to the
@@ -143,7 +167,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       setState(() {
         _starting = false;
       });
-      _scrollToBottom();
+      _scrollToBottom(jump: true);
     } catch (_) {
       if (!mounted) {
         return;
@@ -327,6 +351,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _openHistory() async {
+    _inputFocus.unfocus();
     final int? currentId = _conversationId;
     final int? selected = await Navigator.of(
       context,
@@ -389,7 +414,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         return;
       }
       setState(() {});
-      _scrollToBottom();
+      _scrollToBottom(jump: true);
     } catch (_) {
       if (!mounted) {
         return;
@@ -423,7 +448,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         return;
       }
       setState(() {});
-      _scrollToBottom();
+      _scrollToBottom(jump: true);
     } catch (_) {
       if (!mounted) {
         return;
@@ -435,6 +460,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _openSettings() {
+    _inputFocus.unfocus();
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -446,6 +472,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     String key,
     String sentence,
   ) {
+    _inputFocus.unfocus();
     final Unit? unit = index.lookup(key) ?? index.lookupPhrase(key);
     showWordPopup(
       context: context,
@@ -456,12 +483,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  void _scrollToBottom() {
-    if (!_scroll.hasClients) {
-      return;
-    }
+  /// Scrolls the list so the newest message stays visible.
+  ///
+  /// The callback is scheduled even when the controller has no clients
+  /// yet: on the first build after opening a conversation the [ListView]
+  /// is not attached until the next frame, so a synchronous
+  /// [ScrollController.hasClients] check would silently skip the scroll
+  /// and leave the list at its top.
+  void _scrollToBottom({bool jump = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) {
+      if (!mounted || !_scroll.hasClients) {
+        return;
+      }
+      if (jump) {
+        _jumpToBottom();
         return;
       }
       try {
@@ -474,6 +509,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         // List not laid out yet; the next build will show the bottom.
       }
     });
+  }
+
+  /// Jumps to the end, repeating while the lazy list refines its extent
+  /// estimate as the last items are laid out.
+  void _jumpToBottom([int attempts = 5, double previousMax = -1]) {
+    if (!mounted || !_scroll.hasClients) {
+      return;
+    }
+    final double max = _scroll.position.maxScrollExtent;
+    _scroll.jumpTo(max);
+    if (max != previousMax && attempts > 0) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _jumpToBottom(attempts - 1, max),
+      );
+    }
   }
 
   @override
@@ -743,6 +793,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _viewRules() {
+    _inputFocus.unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const DocumentScreen(kind: DocumentKind.rules),
@@ -795,6 +846,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: TextField(
               key: const Key('chatInput'),
               controller: _input,
+              focusNode: _inputFocus,
               minLines: 1,
               maxLines: 5,
               decoration: const InputDecoration(

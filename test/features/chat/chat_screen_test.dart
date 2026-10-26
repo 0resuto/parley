@@ -385,6 +385,79 @@ void main() {
       await tester.runAsync(() => events.close());
     });
 
+    testWidgets('opens the conversation at the newest message', (
+      WidgetTester tester,
+    ) async {
+      final Conversation conversation = await chats.createConversation();
+      for (int i = 0; i < 30; i++) {
+        await chats.addMessage(
+          conversationId: conversation.id,
+          role: i.isEven ? ChatRole.user : ChatRole.assistant,
+          content:
+              'message $i\n'
+              '${List<String>.generate(i + 1, (int j) => 'line $j').join('\n')}',
+        );
+      }
+
+      await pumpChatNoHook(tester);
+
+      final ListView list = tester.widget(find.byKey(const Key('chatList')));
+      final ScrollController controller = list.controller!;
+      expect(controller.position.maxScrollExtent, greaterThan(0));
+      // Restarting the app must show the end of the conversation, not the
+      // first stored message (bug: list stayed at offset 0).
+      expect(
+        controller.position.pixels,
+        closeTo(controller.position.maxScrollExtent, 1),
+      );
+      expect(find.textContaining('message 29'), findsOneWidget);
+    });
+
+    testWidgets('hiding the keyboard also drops composer focus', (
+      WidgetTester tester,
+    ) async {
+      addTearDown(tester.view.resetViewInsets);
+      await pumpChatNoHook(tester);
+
+      final TextField input = tester.widget(find.byKey(const Key('chatInput')));
+      final FocusNode focus = input.focusNode!;
+      await tester.tap(find.byKey(const Key('chatInput')));
+      await tester.pump();
+      expect(focus.hasFocus, isTrue);
+
+      // The keyboard opens, then the system back button hides it while
+      // the field itself keeps focus.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pump();
+      await tester.pump();
+
+      // Without the fix the field stayed focused and any later route or
+      // bottom-sheet pop restored focus and reopened the keyboard.
+      expect(focus.hasFocus, isFalse);
+    });
+
+    testWidgets('opening history drops composer focus', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+
+      final TextField input = tester.widget(find.byKey(const Key('chatInput')));
+      final FocusNode focus = input.focusNode!;
+      await tester.tap(find.byKey(const Key('chatInput')));
+      await tester.pump();
+      expect(focus.hasFocus, isTrue);
+
+      await tester.tap(find.byKey(const Key('chatHistoryButton')));
+      await tester.pumpAndSettle();
+      expect(focus.hasFocus, isFalse);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(focus.hasFocus, isFalse);
+    });
+
     testWidgets('streaming text keeps the list scrolled to the bottom', (
       WidgetTester tester,
     ) async {
