@@ -13,8 +13,19 @@ flutter_*.log
 .swiftpm/
 migrate_working_dir/
 
-# AI agent workspace (private, never committed)
+# Local AI assistant configuration, skills and harness files
+# (private tooling, never committed; this file is the only place that
+# may mention them)
 .agents/
+.opencode/
+.claude/
+.cursor/
+.codex/
+opencode.json
+opencode.jsonc
+skills-lock.json
+AGENTS.md
+CLAUDE.md
 
 # IntelliJ related
 *.iml
