@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import 'package:parley/core/clock.dart';
 import 'package:parley/data/models/unit.dart';
@@ -105,86 +106,119 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: StreamBuilder<List<Unit>>(
+            child: StreamBuilder<({List<Unit> units, int total})>(
               // A new key forces a fresh subscription after Retry (A-50).
               key: ValueKey<int>(_reload),
-              stream: repo.watchAll(
+              stream: repo.watchAllWithTotal(
                 status: _filter,
                 query: _query.isEmpty ? null : _query,
               ),
-              builder: (BuildContext context, AsyncSnapshot<List<Unit>> snap) {
-                if (snap.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Something went wrong.'),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          key: const Key('dictionaryRetry'),
-                          onPressed: () {
-                            setState(() {
-                              _reload++;
-                            });
-                          },
-                          child: const Text('Retry'),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<({List<Unit> units, int total})> snap,
+                  ) {
+                    if (snap.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Something went wrong.'),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              key: const Key('dictionaryRetry'),
+                              onPressed: () {
+                                setState(() {
+                                  _reload++;
+                                });
+                              },
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final List<Unit> units = snap.data!;
-                if (units.isEmpty) {
-                  final bool isFiltering =
-                      _filter != null || _query.trim().isNotEmpty;
-                  return Center(
-                    child: Text(
-                      isFiltering
-                          ? 'No words found'
-                          : 'Your dictionary is empty. Tap + to add a word.',
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: units.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final Unit unit = units[index];
-                    final UnitStatus status = statusOf(unit);
-                    return ListTile(
-                      title: Text(unit.text),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          WordMeaning(textKey: unit.textKey),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Chip(
-                                label: Text(
-                                  statusLabel(status),
-                                  style: const TextStyle(fontSize: 12),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final List<Unit> units = snap.data!.units;
+                    final int total = snap.data!.total;
+                    final bool isFiltering =
+                        _filter != null || _query.trim().isNotEmpty;
+                    final Widget body;
+                    if (units.isEmpty) {
+                      body = Center(
+                        child: Text(
+                          isFiltering
+                              ? 'No words found'
+                              : 'Your dictionary is empty. Tap + to add a word.',
+                        ),
+                      );
+                    } else {
+                      body = ListView.builder(
+                        itemCount: units.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final Unit unit = units[index];
+                          final UnitStatus status = statusOf(unit);
+                          return ListTile(
+                            title: Text(unit.text),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                WordMeaning(textKey: unit.textKey),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Chip(
+                                      label: Text(
+                                        statusLabel(status),
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        formatRelativeDue(unit.due, now),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  formatRelativeDue(unit.due, now),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            onTap: () => _openEdit(unit.id),
+                          );
+                        },
+                      );
+                    }
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              isFiltering
+                                  ? '${formatCount(units.length)}/'
+                                        '${formatCount(total)}'
+                                  : formatWords(total),
+                              key: const Key('dictionaryWordCount'),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
                           ),
-                        ],
-                      ),
-                      onTap: () => _openEdit(unit.id),
+                        ),
+                        Expanded(child: body),
+                      ],
                     );
                   },
-                );
-              },
             ),
           ),
         ],
@@ -211,6 +245,14 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       ),
     );
   }
+}
+
+/// Formats a dictionary count with the locale's thousands separators.
+String formatCount(int count) => NumberFormat.decimalPattern().format(count);
+
+/// Formats a standalone word count, e.g. `1 word` or `1,204 words`.
+String formatWords(int count) {
+  return '${formatCount(count)} ${count == 1 ? 'word' : 'words'}';
 }
 
 /// English chip label for a dictionary status.

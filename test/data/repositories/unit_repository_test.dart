@@ -241,6 +241,22 @@ void main() {
       units = await repo.watchAll(query: '  ').first;
       expect(units, hasLength(2));
     });
+
+    test('reports the unfiltered total next to the filtered units', () async {
+      await repo.add(text: 'Cow');
+      final Unit milk = await repo.add(text: 'Milk');
+      await repo.setKnown(milk.id, true);
+
+      final snapshot = await repo
+          .watchAllWithTotal(status: UnitStatus.known)
+          .first;
+      expect(snapshot.units.map((u) => u.id), [milk.id]);
+      expect(snapshot.total, 2);
+
+      final all = await repo.watchAllWithTotal(query: 'cow').first;
+      expect(all.units, hasLength(1));
+      expect(all.total, 2);
+    });
   });
 
   group('dueQueue', () {

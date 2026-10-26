@@ -207,6 +207,22 @@ class UnitRepository {
   /// [status] filters by derived status, [query] matches text or key
   /// (case-insensitive, substring).
   Stream<List<Unit>> watchAll({UnitStatus? status, String? query}) {
+    return watchAllWithTotal(
+      status: status,
+      query: query,
+    ).map((snapshot) => snapshot.units);
+  }
+
+  /// Watches all units, newest first, together with the unfiltered total.
+  ///
+  /// [status] filters by derived status, [query] matches text or key
+  /// (case-insensitive, substring). `units` holds the matches while
+  /// `total` counts every unit before filtering, so the dictionary can
+  /// show `n/N` while a filter is active.
+  Stream<({List<Unit> units, int total})> watchAllWithTotal({
+    UnitStatus? status,
+    String? query,
+  }) {
     final String needle = (query ?? '').trim().toLowerCase();
     final String normNeedle = needle.isEmpty ? '' : normalizeKey(needle);
     final queryStream = _db.select(_db.units)
@@ -215,7 +231,8 @@ class UnitRepository {
         (t) => OrderingTerm(expression: t.id, mode: OrderingMode.desc),
       ]);
     return queryStream.watch().map((rows) {
-      Iterable<Unit> units = rows.map(_toModel);
+      final List<Unit> all = rows.map(_toModel).toList();
+      Iterable<Unit> units = all;
       if (status != null) {
         units = units.where((u) => statusOf(u) == status);
       }
@@ -226,7 +243,7 @@ class UnitRepository {
               u.textKey.contains(normNeedle),
         );
       }
-      return units.toList();
+      return (units: units.toList(), total: all.length);
     });
   }
 

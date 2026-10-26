@@ -97,6 +97,17 @@ class FakeUnitRepository implements UnitRepository {
 
   @override
   Stream<List<Unit>> watchAll({UnitStatus? status, String? query}) {
+    return watchAllWithTotal(
+      status: status,
+      query: query,
+    ).map((snapshot) => snapshot.units);
+  }
+
+  @override
+  Stream<({List<Unit> units, int total})> watchAllWithTotal({
+    UnitStatus? status,
+    String? query,
+  }) {
     final List<Unit> sorted = _units.toList()
       ..sort((a, b) {
         final int byCreated = b.createdAt.compareTo(a.createdAt);
@@ -118,7 +129,7 @@ class FakeUnitRepository implements UnitRepository {
             u.textKey.contains(normNeedle),
       );
     }
-    return Stream.value(units.toList());
+    return Stream.value((units: units.toList(), total: sorted.length));
   }
 
   @override

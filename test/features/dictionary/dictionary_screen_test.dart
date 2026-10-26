@@ -11,18 +11,22 @@ import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_dictionary_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
-/// Fails [watchAll] until [fail] is cleared, to exercise Retry (A-50).
+/// Fails the dictionary stream until [fail] is cleared, to exercise
+/// Retry (A-50).
 class FlakyUnitRepository extends FakeUnitRepository {
   FlakyUnitRepository({required super.clock});
 
   bool fail = true;
 
   @override
-  Stream<List<Unit>> watchAll({UnitStatus? status, String? query}) {
+  Stream<({List<Unit> units, int total})> watchAllWithTotal({
+    UnitStatus? status,
+    String? query,
+  }) {
     if (fail) {
-      return Stream<List<Unit>>.error(StateError('boom'));
+      return Stream<({List<Unit> units, int total})>.error(StateError('boom'));
     }
-    return super.watchAll(status: status, query: query);
+    return super.watchAllWithTotal(status: status, query: query);
   }
 }
 
@@ -77,6 +81,39 @@ void main() {
       expect(find.widgetWithText(Chip, 'New'), findsNWidgets(2));
       expect(find.text('Search dictionary'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
+    });
+
+    testWidgets('shows the word count and n/N while filtering', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+      final Unit milk = await repo.add(text: 'Milk');
+      await repo.setKnown(milk.id, true);
+
+      await pumpDictionary(tester);
+      expect(find.text('2 words'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Known'));
+      await tester.pumpAndSettle();
+      expect(find.text('1/2'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 words'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'cow');
+      await tester.pumpAndSettle();
+      expect(find.text('1/2'), findsOneWidget);
+    });
+
+    testWidgets('uses the singular for a single word', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+
+      await pumpDictionary(tester);
+
+      expect(find.text('1 word'), findsOneWidget);
     });
 
     testWidgets('shows the transcription when the source provides one', (
@@ -142,6 +179,7 @@ void main() {
       await pumpDictionary(tester);
 
       expect(find.textContaining('Your dictionary is empty'), findsOneWidget);
+      expect(find.text('0 words'), findsOneWidget);
       expect(find.text('Cow'), findsNothing);
     });
 
@@ -153,6 +191,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No words found'), findsOneWidget);
+      expect(find.text('0/1'), findsOneWidget);
       expect(find.text('Cow'), findsNothing);
     });
 
