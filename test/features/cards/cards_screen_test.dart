@@ -180,6 +180,36 @@ void main() {
       expect(find.text('Again'), findsNothing);
     });
 
+    testWidgets('review ahead shows future cards and returns to due', (
+      WidgetTester tester,
+    ) async {
+      final Unit bread = await repo.add(text: 'Bread');
+      await repo.update(
+        bread.copyWith(due: clock.now().add(const Duration(days: 2))),
+      );
+
+      await pumpCards(tester);
+      expect(find.text('All caught up.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('cardsReviewAhead')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Review ahead'), findsOneWidget);
+      expect(find.text('Bread'), findsOneWidget);
+      expect(find.text('Show answer'), findsOneWidget);
+
+      await tester.tap(find.text('Show answer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Again'), findsOneWidget);
+      expect(find.text('Hard'), findsOneWidget);
+      expect(find.text('Good'), findsOneWidget);
+      expect(find.text('Easy'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('cardsBackToDueHeader')));
+      await tester.pumpAndSettle();
+      expect(find.text('All caught up.'), findsOneWidget);
+    });
+
     testWidgets('full cycle: reveal, rate, mark known', (
       WidgetTester tester,
     ) async {

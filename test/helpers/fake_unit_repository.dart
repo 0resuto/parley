@@ -225,6 +225,19 @@ class FakeUnitRepository implements UnitRepository {
   }
 
   @override
+  Future<List<Unit>> aheadQueue() async {
+    final List<Unit> queue = _units.where((u) => !u.knownManual).toList()
+      ..sort((a, b) {
+        final int byDue = a.due.compareTo(b.due);
+        if (byDue != 0) {
+          return byDue;
+        }
+        return a.id.compareTo(b.id);
+      });
+    return queue;
+  }
+
+  @override
   Future<List<Unit>> targetWords(int limit, DateTime now) async {
     final DateTime utc = now.toUtc();
     final List<Unit> units = _units

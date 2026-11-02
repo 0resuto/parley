@@ -265,6 +265,19 @@ class UnitRepository {
     return rows.map(_toModel).toList();
   }
 
+  /// Non-Known units sorted by due, including future ones, for Review ahead.
+  Future<List<Unit>> aheadQueue() async {
+    final List<db.Unit> rows =
+        await (_db.select(_db.units)
+              ..where((t) => t.knownManual.equals(false))
+              ..orderBy([
+                (t) => OrderingTerm(expression: t.due, mode: OrderingMode.asc),
+                (t) => OrderingTerm(expression: t.id, mode: OrderingMode.asc),
+              ]))
+            .get();
+    return rows.map(_toModel).toList();
+  }
+
   /// Non-Known New/Learning/Young units: due-now first, then newest.
   Future<List<Unit>> targetWords(int limit, DateTime now) async {
     final DateTime utc = now.toUtc();

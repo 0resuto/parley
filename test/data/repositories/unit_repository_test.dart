@@ -297,6 +297,29 @@ void main() {
     });
   });
 
+  group('aheadQueue', () {
+    test('returns non-Known units soonest first, including future', () async {
+      final Unit cow = await repo.add(text: 'Cow');
+      final Unit milk = await repo.add(text: 'Milk');
+      final Unit bread = await repo.add(text: 'Bread');
+      final Unit known = await repo.add(text: 'Cheese');
+
+      await repo.update(
+        cow.copyWith(due: initial.add(const Duration(days: 2))),
+      );
+      await repo.update(
+        milk.copyWith(due: initial.add(const Duration(days: 1))),
+      );
+      await repo.update(
+        bread.copyWith(due: initial.subtract(const Duration(days: 1))),
+      );
+      await repo.setKnown(known.id, true);
+
+      final List<Unit> queue = await repo.aheadQueue();
+      expect(queue.map((u) => u.text), ['Bread', 'Milk', 'Cow']);
+    });
+  });
+
   group('targetWords', () {
     test('includes New, Learning and Young; due first then newest', () async {
       // Not-due new unit, created first.

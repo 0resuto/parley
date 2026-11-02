@@ -94,6 +94,31 @@ void main() {
       expect(state.revealed, isFalse);
     });
 
+    test('review ahead loads future cards and can return to due', () async {
+      await addWord('cow', due: initial.subtract(const Duration(days: 1)));
+      await addWord('milk', due: initial.add(const Duration(days: 1)));
+      await addWord('bread', due: initial.add(const Duration(days: 2)));
+
+      final CardsController controller = container.read(
+        cardsControllerProvider.notifier,
+      );
+      CardsState state = await refresh();
+      expect(state.ahead, isFalse);
+      expect(state.queue.map((u) => u.text), ['cow']);
+
+      await controller.reviewAhead();
+      state = container.read(cardsControllerProvider);
+      expect(state.ahead, isTrue);
+      expect(state.queue.map((u) => u.text), ['cow', 'milk', 'bread']);
+      expect(state.current?.text, 'cow');
+      expect(state.revealed, isFalse);
+
+      await controller.reviewDue();
+      state = container.read(cardsControllerProvider);
+      expect(state.ahead, isFalse);
+      expect(state.queue.map((u) => u.text), ['cow']);
+    });
+
     test('reveal shows the answer and is idempotent', () async {
       await addWord('cow');
       CardsState state = await refresh();

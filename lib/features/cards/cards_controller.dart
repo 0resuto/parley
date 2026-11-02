@@ -26,6 +26,7 @@ class CardsState {
     required this.meaning,
     required this.resolving,
     required this.isLoading,
+    this.ahead = false,
     this.busy = false,
     this.error,
   });
@@ -36,6 +37,7 @@ class CardsState {
       meaning = null,
       resolving = false,
       isLoading = true,
+      ahead = false,
       busy = false,
       error = null;
 
@@ -44,6 +46,9 @@ class CardsState {
   final String? meaning;
   final bool resolving;
   final bool isLoading;
+
+  /// True while showing cards before they are due.
+  final bool ahead;
   final bool busy;
 
   /// English error text shown with a Retry button (null when none).
@@ -64,6 +69,7 @@ class CardsState {
     String? meaning,
     bool? resolving,
     bool? isLoading,
+    bool? ahead,
     bool? busy,
     String? error,
     bool clearError = false,
@@ -74,6 +80,7 @@ class CardsState {
       meaning: meaning ?? this.meaning,
       resolving: resolving ?? this.resolving,
       isLoading: isLoading ?? this.isLoading,
+      ahead: ahead ?? this.ahead,
       busy: busy ?? this.busy,
       error: clearError ? null : (error ?? this.error),
     );
@@ -109,8 +116,11 @@ class CardsController extends Notifier<CardsState> {
   Future<void> refresh() async {
     final UnitRepository units = ref.read(unitRepositoryProvider);
     final Clock clock = ref.read(clockProvider);
+    final bool ahead = state.ahead;
     try {
-      final List<Unit> queue = await units.dueQueue(clock.now());
+      final List<Unit> queue = ahead
+          ? await units.aheadQueue()
+          : await units.dueQueue(clock.now());
       if (!ref.mounted) {
         return;
       }
@@ -120,6 +130,7 @@ class CardsController extends Notifier<CardsState> {
         meaning: null,
         resolving: false,
         isLoading: false,
+        ahead: ahead,
       );
     } catch (_) {
       if (!ref.mounted) {
@@ -127,6 +138,24 @@ class CardsController extends Notifier<CardsState> {
       }
       state = state.copyWith(isLoading: false, error: 'Something went wrong.');
     }
+  }
+
+  /// Loads non-Known cards before they are due, soonest first.
+  Future<void> reviewAhead() async {
+    if (state.ahead) {
+      return;
+    }
+    state = state.copyWith(ahead: true, isLoading: true, clearError: true);
+    await refresh();
+  }
+
+  /// Returns to the normal due queue.
+  Future<void> reviewDue() async {
+    if (!state.ahead) {
+      return;
+    }
+    state = state.copyWith(ahead: false, isLoading: true, clearError: true);
+    await refresh();
   }
 
   /// Shows the answer side of the current card.
