@@ -1,0 +1,274 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:parley/services/stt/stt_engine.dart';
+import 'package:parley/services/stt/stt_model.dart';
+import 'package:parley/services/stt/stt_model_manager.dart';
+import 'stt_engine_controller.dart';
+import 'stt_models_controller.dart';
+
+/// Offline speech-model downloads (SPEC 5.10).
+class SttModelsSection extends ConsumerWidget {
+  const SttModelsSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final SttModelsState state = ref.watch(sttModelsControllerProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            'Offline models',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'Download once; recognition then works without a connection.',
+          ),
+        ),
+        const SizedBox(height: 4),
+        for (final SttModel model in sttModels)
+          _ModelCard(
+            model: model,
+            status: state.statusOf(model.engine),
+            anotherBusy: state.isBusy && !state.statusOf(model.engine).isBusy,
+            onDownload: () => _download(context, ref, model),
+            onCancel: () =>
+                ref.read(sttModelsControllerProvider.notifier).cancel(),
+            onDelete: () => _delete(context, ref, model),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    SttModel model,
+  ) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Download model?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${model.name} (${model.sizeLabel})'),
+              const SizedBox(height: 8),
+              const Text(
+                'The model is downloaded from GitHub and stays on this device. '
+                'Use Wi-Fi for large downloads.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              key: const Key('sttDownloadCancelButton'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('sttDownloadConfirmButton'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Download'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    try {
+      await ref
+          .read(sttModelsControllerProvider.notifier)
+          .download(model.engine);
+    } on SttModelException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.userMessage)));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not download the model.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    SttModel model,
+  ) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete model?'),
+          content: Text(
+            '${model.name} will be removed from this device. '
+            'You can download it again later.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('sttDeleteConfirmButton'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    await ref.read(sttModelsControllerProvider.notifier).delete(model.engine);
+    if (ref.read(sttEngineProvider) == model.engine) {
+      await ref.read(sttEngineProvider.notifier).select(SttEngineKind.system);
+    }
+  }
+}
+
+class _ModelCard extends StatelessWidget {
+  const _ModelCard({
+    required this.model,
+    required this.status,
+    required this.anotherBusy,
+    required this.onDownload,
+    required this.onCancel,
+    required this.onDelete,
+  });
+
+  final SttModel model;
+  final SttModelStatus status;
+  final bool anotherBusy;
+  final VoidCallback onDownload;
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final String id = model.engine.id;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        model.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${model.sizeLabel} · ${model.description}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (status.phase == SttModelPhase.ready)
+                        Text(
+                          'Downloaded',
+                          key: Key('sttModelStatus_$id'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                _action(context, id),
+              ],
+            ),
+            if (status.phase == SttModelPhase.downloading) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                key: Key('sttModelProgress_$id'),
+                value: status.progress,
+              ),
+              Row(
+                children: [
+                  Text('${(status.progress * 100).round()}%'),
+                  const Spacer(),
+                  TextButton(
+                    key: Key('sttCancel_$id'),
+                    onPressed: onCancel,
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ] else if (status.phase == SttModelPhase.verifying ||
+                status.phase == SttModelPhase.extracting) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    status.phase == SttModelPhase.verifying
+                        ? 'Checking the download...'
+                        : 'Unpacking the model...',
+                  ),
+                ],
+              ),
+            ] else if (status.phase == SttModelPhase.failed) ...[
+              const SizedBox(height: 8),
+              Text(
+                status.error ?? 'The model download failed.',
+                key: Key('sttModelError_$id'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _action(BuildContext context, String id) {
+    return switch (status.phase) {
+      SttModelPhase.notDownloaded => TextButton(
+        key: Key('sttDownload_$id'),
+        onPressed: anotherBusy ? null : onDownload,
+        child: const Text('Download'),
+      ),
+      SttModelPhase.downloading => const SizedBox.shrink(),
+      SttModelPhase.verifying ||
+      SttModelPhase.extracting => const SizedBox.shrink(),
+      SttModelPhase.ready => IconButton(
+        key: Key('sttDelete_$id'),
+        icon: const Icon(Icons.delete_outline),
+        tooltip: 'Delete',
+        onPressed: onDelete,
+      ),
+      SttModelPhase.failed => TextButton(
+        key: Key('sttRetry_$id'),
+        onPressed: anotherBusy ? null : onDownload,
+        child: const Text('Retry'),
+      ),
+    };
+  }
+}

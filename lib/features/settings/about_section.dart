@@ -29,6 +29,11 @@ class AboutSection extends StatelessWidget {
           title: Text('Dictionary data'),
           subtitle: Text('Wiktionary via kaikki.org (CC BY-SA)'),
         ),
+        const ListTile(
+          leading: Icon(Icons.record_voice_over_outlined),
+          title: Text('Offline speech models'),
+          subtitle: Text('Moonshine and Whisper via sherpa-onnx (MIT)'),
+        ),
       ],
     );
   }
