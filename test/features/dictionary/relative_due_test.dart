@@ -49,4 +49,19 @@ void main() {
       startsWith('Overdue since '),
     );
   });
+
+  test('compact review labels use only an amount', () {
+    expect(formatCompactDue(now, now), 'now');
+    expect(formatCompactDue(now.add(const Duration(minutes: 5)), now), '5m');
+    expect(formatCompactDue(now.add(const Duration(hours: 3)), now), '3h');
+    expect(formatCompactDue(now.add(const Duration(days: 2)), now), '2d');
+    expect(
+      formatCompactDue(now.subtract(const Duration(minutes: 5)), now),
+      '5m',
+    );
+    expect(
+      formatCompactDue(now.subtract(const Duration(days: 40)), now),
+      isNotEmpty,
+    );
+  });
 }

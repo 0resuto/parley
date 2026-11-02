@@ -39,3 +39,24 @@ String formatRelativeDue(DateTime due, DateTime now) {
   }
   return 'Overdue since ${DateFormat.yMMMd().format(due.toLocal())}';
 }
+
+/// Compact review label without "due" or "overdue" wording.
+///
+/// Examples: `now`, `5m`, `2h`, `3d`, and an absolute date after 30 days.
+String formatCompactDue(DateTime due, DateTime now) {
+  final Duration diff = due.toUtc().difference(now.toUtc());
+  final Duration abs = diff.abs();
+  if (abs.inMinutes < 1) {
+    return 'now';
+  }
+  if (abs < const Duration(hours: 1)) {
+    return '${abs.inMinutes}m';
+  }
+  if (abs < const Duration(days: 1)) {
+    return '${abs.inHours}h';
+  }
+  if (abs < const Duration(days: 30)) {
+    return '${abs.inDays}d';
+  }
+  return DateFormat.MMMd().format(due.toLocal());
+}

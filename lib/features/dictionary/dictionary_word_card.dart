@@ -25,10 +25,15 @@ class DictionaryWordCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
     final Color accent = statusColor(colors, status);
-    final bool overdue = unit.due.toUtc().isBefore(
-      now.toUtc().subtract(const Duration(minutes: 1)),
-    );
+    final bool isKnown = status == UnitStatus.known;
+    final bool overdue =
+        !isKnown &&
+        unit.due.toUtc().isBefore(
+          now.toUtc().subtract(const Duration(minutes: 1)),
+        );
     final Color dueColor = overdue ? colors.error : colors.onSurfaceVariant;
+    final String compactDue = formatCompactDue(unit.due, now);
+    final String fullDue = formatRelativeDue(unit.due, now);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
@@ -74,6 +79,10 @@ class DictionaryWordCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
+                        if (!isKnown) ...[
+                          _dueBadge(theme, dueColor, fullDue, compactDue),
+                          const SizedBox(width: 6),
+                        ],
                         Chip(
                           label: Text(
                             statusLabel(status),
@@ -109,23 +118,6 @@ class DictionaryWordCard extends StatelessWidget {
                         height: 1.25,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(Icons.schedule, size: 12, color: dueColor),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            formatRelativeDue(unit.due, now),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontSize: 11,
-                              height: 1.1,
-                              color: dueColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -141,6 +133,33 @@ class DictionaryWordCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _dueBadge(
+    ThemeData theme,
+    Color color,
+    String fullDue,
+    String compactDue,
+  ) {
+    return Tooltip(
+      message: fullDue,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.schedule, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(
+            compactDue,
+            key: const Key('dictionaryDue'),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 11,
+              height: 1.1,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

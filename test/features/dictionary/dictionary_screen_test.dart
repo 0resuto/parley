@@ -76,8 +76,8 @@ void main() {
       expect(find.text('Milk'), findsOneWidget);
       expect(find.text('корова'), findsOneWidget);
       expect(find.text('молоко'), findsOneWidget);
-      // New units are due now; each row shows the status chip.
-      expect(find.text('Due now'), findsNWidgets(2));
+      // New units are due now; each row shows the compact due badge.
+      expect(find.text('now'), findsNWidgets(2));
       expect(find.widgetWithText(Chip, 'New'), findsNWidgets(2));
       expect(find.text('Search dictionary'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
@@ -114,6 +114,20 @@ void main() {
       await pumpDictionary(tester);
 
       expect(find.text('1 word'), findsOneWidget);
+    });
+
+    testWidgets('known words show no review status', (
+      WidgetTester tester,
+    ) async {
+      final Unit cow = await repo.add(text: 'Cow');
+      await repo.setKnown(cow.id, true);
+      clock.advance(const Duration(days: 2));
+
+      await pumpDictionary(tester);
+
+      expect(find.byKey(const Key('dictionaryDue')), findsNothing);
+      expect(find.textContaining('Overdue'), findsNothing);
+      expect(find.text('No reviews scheduled'), findsNothing);
     });
 
     testWidgets('shows the transcription when the source provides one', (
@@ -231,14 +245,14 @@ void main() {
     ) async {
       await repo.add(text: 'Cow');
       await pumpDictionary(tester);
-      expect(find.text('Due now'), findsOneWidget);
+      expect(find.text('now'), findsOneWidget);
 
       clock.advance(const Duration(minutes: 5));
       await tester.pump(const Duration(minutes: 1));
       await tester.pump();
 
-      expect(find.text('Due now'), findsNothing);
-      expect(find.text('Overdue by 5 mins'), findsOneWidget);
+      expect(find.text('now'), findsNothing);
+      expect(find.text('5m'), findsOneWidget);
     });
   });
 }
