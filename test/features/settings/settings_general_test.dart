@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/core/failures.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
+import 'package:parley/features/settings/settings_section.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/llm/model_catalog.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
@@ -200,6 +201,7 @@ void main() {
       expect(find.text('AI provider'), findsOneWidget);
       expect(find.text('Tutor'), findsOneWidget);
       expect(find.text('Translation'), findsOneWidget);
+      expect(find.byType(SettingsSection), findsNWidgets(7));
       expect(
         find.text('Only OpenAI-format models are supported.'),
         findsOneWidget,

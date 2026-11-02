@@ -9,6 +9,7 @@ import 'about_section.dart';
 import 'ai_provider_section.dart';
 import 'dictionaries_section.dart';
 import 'settings_providers.dart';
+import 'settings_section.dart';
 import 'translation_section.dart';
 import 'tutor_section.dart';
 import 'voice_section.dart';
@@ -276,37 +277,44 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AiProviderSection(),
-            const TutorSection(),
-            const TranslationSection(),
-            const DictionariesSection(),
-            const VoiceSection(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                'Data',
-                style: Theme.of(context).textTheme.titleSmall,
+            const SettingsSection(child: AiProviderSection()),
+            const SettingsSection(child: TutorSection()),
+            const SettingsSection(child: TranslationSection()),
+            const SettingsSection(child: DictionariesSection()),
+            const SettingsSection(child: VoiceSection()),
+            SettingsSection(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: Text(
+                      'Data',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.upload),
+                    title: const Text('Export JSON'),
+                    subtitle: const Text('Share a backup of your dictionary'),
+                    onTap: _busy ? null : _export,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.download),
+                    title: const Text('Import JSON'),
+                    subtitle: const Text('Restore from a backup file'),
+                    onTap: _busy ? null : _import,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.table_chart),
+                    title: const Text('Import CSV'),
+                    subtitle: const Text('Add words from a CSV file'),
+                    onTap: _busy ? null : _importCsv,
+                  ),
+                ],
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.upload),
-              title: const Text('Export JSON'),
-              subtitle: const Text('Share a backup of your dictionary'),
-              onTap: _busy ? null : _export,
-            ),
-            ListTile(
-              leading: const Icon(Icons.download),
-              title: const Text('Import JSON'),
-              subtitle: const Text('Restore from a backup file'),
-              onTap: _busy ? null : _import,
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart),
-              title: const Text('Import CSV'),
-              subtitle: const Text('Add words from a CSV file'),
-              onTap: _busy ? null : _importCsv,
-            ),
-            const AboutSection(),
+            const SettingsSection(child: AboutSection()),
             if (_working) const LinearProgressIndicator(),
           ],
         ),

@@ -95,6 +95,23 @@ void main() {
     expect(find.text('No messages yet. Say hello!'), findsOneWidget);
   });
 
+  testWidgets('switching tabs drops composer focus', (
+    WidgetTester tester,
+  ) async {
+    await pumpApp(tester);
+
+    final TextField input = tester.widget(find.byKey(const Key('chatInput')));
+    final FocusNode focus = input.focusNode!;
+    await tester.tap(find.byKey(const Key('chatInput')));
+    await tester.pump();
+    expect(focus.hasFocus, isTrue);
+
+    await tester.tap(find.text('Cards'));
+    await tester.pumpAndSettle();
+
+    expect(focus.hasFocus, isFalse);
+  });
+
   testWidgets('theme brightness is dark', (WidgetTester tester) async {
     await pumpApp(tester);
 

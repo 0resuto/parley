@@ -89,7 +89,9 @@ flowchart LR
   the target words, and a notes updater rewrites `notes.md` (best-effort,
   offline-aware).
 - **Voice** — assistant replies can be played with `flutter_tts` (en-US), with an
-  auto-play option.
+  auto-play option; messages can be dictated with the Android speech recognizer
+  (en-US) or a downloaded offline model (Moonshine Tiny or Whisper Tiny.en),
+  with a live light-gray spectrum and optional insert-or-send behavior.
 - **Data** — JSON export/import (merge by word) and CSV import (`word;translation`).
 
 ## Requirements
@@ -118,7 +120,10 @@ actions show a clear message when there is no connection.
   free-text model name.
 - **Tutor** — new-word density (0–30 %) and editors for `rules.md` (max 6000
   chars) and `notes.md` (max 8000 chars) with version history.
-- **Voice** — auto-play replies and speech speed (0.5–1.5×).
+- **Voice** — auto-play replies, speech speed (0.5–1.5×), and voice input:
+  insert or send after recognition, on-device recognition preference, and
+  optional offline models (Moonshine Tiny or Whisper Tiny.en) downloaded from
+  Settings with a size confirmation, progress and cancel.
 - **Data** — JSON export/import and CSV import.
 
 ## Project layout
@@ -141,6 +146,10 @@ dart format .
 flutter analyze
 flutter test
 ```
+
+For release builds use `flutter build apk --release --split-per-abi`: the
+universal APK is large (~138 MB) because `sherpa-onnx` bundles native libraries
+for every ABI, while the arm64 APK is ~51 MB.
 
 Pre-commit checks run on every commit (formatting + analysis) and the test
 suite runs before every push. Install the hooks once per clone (requires
@@ -172,4 +181,6 @@ live in GitHub Releases.
 The app code is MIT — see [LICENSE](LICENSE). The bundled English–Russian
 dictionary data (`assets/dictionary/`, built by `tool/build_dictionary.py`
 from the [kaikki.org](https://kaikki.org/dictionary/English/) Wiktionary
-extract) comes from Wiktionary and is licensed CC BY-SA.
+extract) comes from Wiktionary and is licensed CC BY-SA. The optional offline
+speech models (Moonshine and Whisper, downloaded with sherpa-onnx) are MIT
+licensed.

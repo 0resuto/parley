@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_providers.dart';
+import 'stt_engine_section.dart';
+import 'stt_models_section.dart';
 
-/// Voice settings (SPEC 5.10): auto-play replies and speech speed.
+/// Voice settings (SPEC 5.10): auto-play replies, speech speed and voice input.
 class VoiceSection extends ConsumerStatefulWidget {
   const VoiceSection({super.key});
 
@@ -14,13 +16,18 @@ class VoiceSection extends ConsumerStatefulWidget {
 class _VoiceSectionState extends ConsumerState<VoiceSection> {
   late bool _autoPlay;
   late double _speed;
+  late bool _autoSend;
+  late bool _preferOnDevice;
 
   @override
   void initState() {
     super.initState();
     final settings = ref.read(settingsRepositoryProvider);
+    final sttSettings = ref.read(sttSettingsProvider);
     _autoPlay = settings.autoPlay;
     _speed = settings.speechSpeed;
+    _autoSend = sttSettings.autoSend;
+    _preferOnDevice = sttSettings.preferOnDevice;
   }
 
   @override
@@ -60,6 +67,43 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
             ref.read(settingsRepositoryProvider).setSpeechSpeed(value);
           },
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            'Voice input',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+        ),
+        SwitchListTile(
+          key: const Key('sttAutoSendSwitch'),
+          title: const Text('Send after recognition'),
+          subtitle: const Text(
+            'Send the recognized message immediately instead of inserting it.',
+          ),
+          value: _autoSend,
+          onChanged: (bool value) {
+            setState(() {
+              _autoSend = value;
+            });
+            ref.read(sttSettingsProvider).setAutoSend(value);
+          },
+        ),
+        SwitchListTile(
+          key: const Key('sttOnDeviceSwitch'),
+          title: const Text('Prefer on-device recognition'),
+          subtitle: const Text(
+            'Use the phone\'s offline speech recognition when available.',
+          ),
+          value: _preferOnDevice,
+          onChanged: (bool value) {
+            setState(() {
+              _preferOnDevice = value;
+            });
+            ref.read(sttSettingsProvider).setPreferOnDevice(value);
+          },
+        ),
+        const SttEngineSection(),
+        const SttModelsSection(),
       ],
     );
   }

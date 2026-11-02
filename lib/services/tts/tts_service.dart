@@ -43,6 +43,7 @@ abstract class TtsService {
 /// Records spoken texts so widget tests can verify Speak was wired.
 class FakeTtsService implements TtsService {
   final List<String> spokenTexts = [];
+  int stopCalls = 0;
   final StreamController<bool> _speaking = StreamController<bool>.broadcast();
 
   @override
@@ -51,7 +52,9 @@ class FakeTtsService implements TtsService {
   }
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    stopCalls++;
+  }
 
   @override
   Stream<bool> get isSpeaking => _speaking.stream;

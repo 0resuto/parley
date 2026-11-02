@@ -15,10 +15,15 @@ import 'package:parley/features/chat/chat_controller.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/settings/settings_repository.dart';
+import 'package:parley/services/settings/stt_settings.dart';
+import 'package:parley/services/stt/stt_providers.dart';
+import 'package:parley/services/stt/stt_service.dart';
+import 'package:parley/services/tts/tts_service.dart';
 
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_clock.dart';
 import '../../helpers/fake_connectivity_service.dart';
+import '../../helpers/fake_stt_service.dart';
 import '../../helpers/fake_unit_repository.dart';
 
 class FakeChatSettings implements SettingsRepository {
@@ -153,6 +158,9 @@ void main() {
   late FakeConnectivityService connectivity;
   late FakeChatLlmClient llm;
   late MemoryDocumentStore docs;
+  late FakeSttService stt;
+  late MemorySttSettings sttSettings;
+  late FakeTtsService tts;
   final DateTime initial = DateTime.utc(2026, 4, 1, 12);
 
   setUp(() {
@@ -163,10 +171,15 @@ void main() {
     connectivity = FakeConnectivityService();
     llm = FakeChatLlmClient();
     docs = MemoryDocumentStore();
+    stt = FakeSttService();
+    sttSettings = MemorySttSettings();
+    tts = FakeTtsService();
   });
 
   tearDown(() async {
     await connectivity.dispose();
+    await stt.dispose();
+    await tts.dispose();
   });
 
   Future<void> pumpChat(WidgetTester tester) async {
@@ -180,6 +193,9 @@ void main() {
           documentStoreProvider.overrideWithValue(docs),
           connectivityServiceProvider.overrideWithValue(connectivity),
           llmClientProvider.overrideWithValue(llm),
+          sttServiceProvider.overrideWithValue(stt),
+          sttSettingsProvider.overrideWithValue(sttSettings),
+          ttsServiceProvider.overrideWithValue(tts),
         ],
         child: const MaterialApp(home: ChatScreen()),
       ),
@@ -200,6 +216,9 @@ void main() {
           documentStoreProvider.overrideWithValue(docs),
           connectivityServiceProvider.overrideWithValue(connectivity),
           llmClientProvider.overrideWithValue(llm),
+          sttServiceProvider.overrideWithValue(stt),
+          sttSettingsProvider.overrideWithValue(sttSettings),
+          ttsServiceProvider.overrideWithValue(tts),
           chatReplyHookProvider.overrideWithValue((_) async {}),
         ],
         child: const MaterialApp(home: ChatScreen()),
@@ -435,6 +454,23 @@ void main() {
 
       // Without the fix the field stayed focused and any later route or
       // bottom-sheet pop restored focus and reopened the keyboard.
+      expect(focus.hasFocus, isFalse);
+    });
+
+    testWidgets('tapping outside the composer drops focus', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+
+      final TextField input = tester.widget(find.byKey(const Key('chatInput')));
+      final FocusNode focus = input.focusNode!;
+      await tester.tap(find.byKey(const Key('chatInput')));
+      await tester.pump();
+      expect(focus.hasFocus, isTrue);
+
+      await tester.tapAt(const Offset(400, 400));
+      await tester.pump();
+
       expect(focus.hasFocus, isFalse);
     });
 
@@ -767,6 +803,129 @@ void main() {
 
       expect(find.text('Something went wrong.'), findsNothing);
       expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+    });
+  });
+
+  group('ChatScreen voice input (22.1)', () {
+    String inputText(WidgetTester tester) {
+      return tester
+          .widget<TextField>(find.byKey(const Key('chatInput')))
+          .controller!
+          .text;
+    }
+
+    testWidgets('mic inserts partial and final text', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      expect(tts.stopCalls, 1);
+      expect(stt.calls, contains('start:true'));
+      expect(find.byKey(const Key('chatListeningIndicator')), findsOneWidget);
+      expect(find.byKey(const Key('chatSpectrum')), findsOneWidget);
+      stt.emitSpectrum(<double>[0.2, 0.8, 0.4]);
+      await tester.pump();
+
+      stt.emitPartial('hello');
+      await tester.pump();
+      expect(inputText(tester), 'hello');
+
+      stt.emitFinal('hello world');
+      await tester.pump();
+      expect(inputText(tester), 'hello world');
+      expect(find.byKey(const Key('chatMicBusy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
+      expect(find.byKey(const Key('chatListeningIndicator')), findsNothing);
+      expect(find.byKey(const Key('chatProcessingIndicator')), findsOneWidget);
+
+      stt.emitStopped();
+      await tester.pump();
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
+    });
+
+    testWidgets('shows processing while the engine is starting', (
+      WidgetTester tester,
+    ) async {
+      stt.startEmitsStarted = false;
+      await pumpChatNoHook(tester);
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+      expect(find.byKey(const Key('chatProcessingIndicator')), findsOneWidget);
+
+      stt.emitStarted();
+      await tester.pump();
+      expect(find.byKey(const Key('chatListeningIndicator')), findsOneWidget);
+      expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
+    });
+
+    testWidgets('dictation keeps text typed before the microphone', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      await tester.enterText(find.byKey(const Key('chatInput')), 'I said');
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+      stt.emitPartial('hello');
+      await tester.pump();
+      expect(inputText(tester), 'I said hello');
+
+      stt.emitFinal('hello world');
+      await tester.pump();
+      expect(inputText(tester), 'I said hello world');
+    });
+
+    testWidgets('auto-send sends the final text once', (
+      WidgetTester tester,
+    ) async {
+      await sttSettings.setAutoSend(true);
+      llm.streamHandler = (_) =>
+          Stream.fromIterable([const TextDelta('reply'), const StreamDone()]);
+      await pumpChatNoHook(tester);
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+      stt.emitFinal('hello there');
+      await tester.pumpAndSettle();
+
+      expect(find.text('hello there'), findsWidgets);
+      expect(inputText(tester), isEmpty);
+      expect(llm.streamCalls, hasLength(1));
+    });
+
+    testWidgets('a recognition failure shows a clear message', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      stt.emitFailure(const SttUnavailableFailure());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(const SttUnavailableFailure().userMessage),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+    });
+
+    testWidgets('tapping the mic again stops listening', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      expect(stt.calls, contains('stop'));
+      expect(find.byKey(const Key('chatMicBusy')), findsOneWidget);
     });
   });
 }

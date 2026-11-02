@@ -102,16 +102,6 @@ class FakeSpeechLlm implements LlmClient {
   }
 }
 
-class TestTtsService extends FakeTtsService {
-  int stopCalls = 0;
-
-  @override
-  Future<void> stop() async {
-    stopCalls++;
-    await super.stop();
-  }
-}
-
 void main() {
   late FakeClock clock;
   late FakeChatRepository chats;
@@ -119,7 +109,7 @@ void main() {
   late FakeSpeechSettings settings;
   late FakeConnectivityService connectivity;
   late FakeSpeechLlm llm;
-  late TestTtsService tts;
+  late FakeTtsService tts;
   late MemoryDocumentStore docs;
   ChatReplyHook? hook;
   final DateTime initial = DateTime.utc(2026, 4, 1, 12);
@@ -176,7 +166,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeSpeechLlm(['Say [[heifer]] please']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');
@@ -211,7 +201,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeSpeechLlm(['finished reply']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');
@@ -239,7 +229,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeSpeechLlm(['first reply', 'second reply']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'one');
@@ -273,7 +263,7 @@ void main() {
     ) async {
       settings.autoPlayValue = true;
       llm = FakeSpeechLlm(['auto hello']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');
@@ -287,7 +277,7 @@ void main() {
     testWidgets('auto-play off speaks nothing', (WidgetTester tester) async {
       settings.autoPlayValue = false;
       llm = FakeSpeechLlm(['quiet hello']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');
@@ -305,7 +295,7 @@ void main() {
       final Completer<void> hookGate = Completer<void>();
       hook = (_) => hookGate.future;
       llm = FakeSpeechLlm(['auto hello']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');
@@ -323,7 +313,7 @@ void main() {
       WidgetTester tester,
     ) async {
       llm = FakeSpeechLlm(['keyed reply']);
-      tts = TestTtsService();
+      tts = FakeTtsService();
       await pumpChat(tester);
 
       await send(tester, 'hi');

@@ -11,11 +11,14 @@ import 'package:parley/features/settings/document_screen.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
 import 'package:parley/services/documents/document_store.dart';
+import 'package:parley/services/stt/stt_service.dart';
 import 'chat_controller.dart';
 import 'conversations_screen.dart';
 import 'message_speech_controller.dart';
 import 'message_text.dart';
 import 'rules_tool.dart';
+import 'stt_controller.dart';
+import 'stt_spectrum.dart';
 import 'tokenizer.dart';
 import 'word_popup.dart';
 
@@ -50,6 +53,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String? _loadError;
   final Set<int> _undoing = {};
 
+  /// Composer text as it was when the current dictation started; partial and
+  /// final results replace only the dictated part.
+  String _sttInputBase = '';
+
+  /// Whether the composer has something to send; drives the Send button.
+  bool _canSend = false;
+
   /// Keeps the current conversation's controller alive while the screen
   /// switches between conversations (the controller is auto-disposed,
   /// A-31). Closed on switch and in [dispose].
@@ -62,7 +72,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void initState() {
     super.initState();
-    _input = TextEditingController();
+    _input = TextEditingController()..addListener(_onInputChanged);
     _scroll = ScrollController();
     _inputFocus = FocusNode();
     WidgetsBinding.instance.addObserver(this);
@@ -72,11 +82,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _cancelStt();
     _chatSubscription?.close();
+    _input.removeListener(_onInputChanged);
     _inputFocus.dispose();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onInputChanged() {
+    final bool canSend = _input.text.trim().isNotEmpty;
+    if (canSend != _canSend && mounted) {
+      setState(() {
+        _canSend = canSend;
+      });
+    }
+  }
+
+  /// Drops keyboard focus from the composer.
+  void _dismissKeyboard() {
+    if (_inputFocus.hasFocus) {
+      _inputFocus.unfocus();
+    }
+  }
+
+  /// Stops voice input without waiting for a final result.
+  void _cancelStt() {
+    try {
+      unawaited(ref.read(sttControllerProvider.notifier).cancel());
+    } catch (_) {
+      // The provider is already gone during app teardown.
+    }
   }
 
   /// Drops composer focus when the system hides the keyboard.
@@ -109,6 +146,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      _cancelStt();
       // Best-effort background notes update (PLAN 7.4, SPEC 5.6).
       // Never blocks the UI; failures are only logged.
       unawaited(ref.read(tutorSchedulerProvider).onAppPaused());
@@ -210,6 +248,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _newChat() async {
+    _dismissKeyboard();
     final int token = ++_switchToken;
     final int? currentId = _conversationId;
     if (currentId != null) {
@@ -225,6 +264,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
     _notifyNewConversation();
+    _cancelStt();
     try {
       final Conversation created = await ref
           .read(chatRepositoryProvider)
@@ -258,6 +298,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (id == null) {
       return;
     }
+    _cancelStt();
     final String text = _input.text;
     if (text.trim().isEmpty) {
       return;
@@ -350,6 +391,74 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Starts or stops dictation (SPEC 5.8).
+  Future<void> _toggleMic() async {
+    final SttState stt = ref.read(sttControllerProvider);
+    if (stt.phase == SttPhase.listening) {
+      await ref.read(sttControllerProvider.notifier).stop();
+      return;
+    }
+    if (stt.phase != SttPhase.idle) {
+      return;
+    }
+    // Hide the keyboard: its clicks would otherwise be recorded.
+    _inputFocus.unfocus();
+    _sttInputBase = _input.text;
+    await ref.read(sttControllerProvider.notifier).start();
+  }
+
+  /// Applies recognition updates and failures to the composer.
+  void _onSttChanged(SttState? previous, SttState next) {
+    if (next.failureSequence != (previous?.failureSequence ?? 0)) {
+      final SttFailure? failure = next.failure;
+      if (failure != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.userMessage)));
+      }
+    }
+    if (next.resultSequence != (previous?.resultSequence ?? 0)) {
+      _applyDictation(next.finalText, finalResult: true);
+      return;
+    }
+    if (next.phase == SttPhase.listening &&
+        next.partial != (previous?.partial ?? '')) {
+      _applyDictation(next.partial, finalResult: false);
+    }
+  }
+
+  /// Replaces the dictated part of the composer, keeping text typed before
+  /// the microphone was opened.
+  void _applyDictation(String recognized, {required bool finalResult}) {
+    if (recognized.trim().isEmpty) {
+      return;
+    }
+    final String base = _sttInputBase;
+    final String text;
+    if (base.isEmpty) {
+      text = recognized;
+    } else if (base.endsWith(' ')) {
+      text = '$base$recognized';
+    } else {
+      text = '$base $recognized';
+    }
+    _input.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    if (!finalResult) {
+      return;
+    }
+    final int? id = _conversationId;
+    if (id == null || !ref.read(sttSettingsProvider).autoSend) {
+      return;
+    }
+    if (ref.read(chatControllerProvider(id)).isStreaming) {
+      return;
+    }
+    unawaited(_send());
+  }
+
   Future<void> _openHistory() async {
     _inputFocus.unfocus();
     final int? currentId = _conversationId;
@@ -386,6 +495,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> _openConversation(int id) async {
     final int token = ++_switchToken;
     _notifyConversationLeft();
+    _cancelStt();
     try {
       final Conversation? conversation = await ref
           .read(chatRepositoryProvider)
@@ -427,6 +537,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Future<void> _openMostRecentOrNew() async {
     final int token = ++_switchToken;
+    _cancelStt();
     try {
       final ChatRepository chats = ref.read(chatRepositoryProvider);
       final Conversation chosen = await _mostRecentOrNew(chats);
@@ -551,6 +662,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     final int id = _conversationId!;
     final ChatState state = ref.watch(chatControllerProvider(id));
+    final SttState sttState = ref.watch(sttControllerProvider);
+    ref.listen<SttState>(sttControllerProvider, _onSttChanged);
     // Follow the growing streamed reply, so new text stays visible (A-33).
     ref.listen(chatControllerProvider(id), (
       ChatState? previous,
@@ -586,7 +699,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         children: [
           Expanded(child: _buildList(context, state, index)),
           if (state.error != null) _buildError(context, state),
-          _buildComposer(state),
+          _buildComposer(state, sttState),
         ],
       ),
     );
@@ -630,19 +743,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _userBubble(BuildContext context, String content, UnitIndex index) {
     return Align(
       alignment: Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(16),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
         ),
-        child: MessageText(
-          rawText: content,
-          index: index,
-          style: Theme.of(context).textTheme.bodyLarge,
-          onWordTap: (surface, key, sentence) =>
-              _openWordPopup(index, surface, key, sentence),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: MessageText(
+            rawText: content,
+            index: index,
+            style: Theme.of(context).textTheme.bodyLarge,
+            onWordTap: (surface, key, sentence) =>
+                _openWordPopup(index, surface, key, sentence),
+          ),
         ),
       ),
     );
@@ -836,40 +954,139 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget _buildComposer(ChatState state) {
+  Widget _buildComposer(ChatState state, SttState sttState) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (sttState.isListening)
+          const Padding(
+            key: Key('chatListeningIndicator'),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 2),
+            child: SttSpectrum(),
+          )
+        else if (sttState.isProcessing)
+          _sttStatus(context),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: sttState.isListening
+                          ? colors.error
+                          : colors.outlineVariant,
+                      width: sttState.isListening ? 1.5 : 1,
+                    ),
+                  ),
+                  child: TextField(
+                    key: const Key('chatInput'),
+                    controller: _input,
+                    focusNode: _inputFocus,
+                    minLines: 1,
+                    maxLines: 5,
+                    onTapOutside: (_) => _dismissKeyboard(),
+                    decoration: const InputDecoration(
+                      hintText: 'Type a message',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (sttState.isProcessing)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    key: Key('chatMicBusy'),
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                IconButton(
+                  key: const Key('chatMicButton'),
+                  icon: Icon(sttState.isListening ? Icons.mic : Icons.mic_none),
+                  style: sttState.isListening
+                      ? IconButton.styleFrom(
+                          backgroundColor: colors.error,
+                          foregroundColor: colors.onError,
+                        )
+                      : IconButton.styleFrom(
+                          backgroundColor: colors.surfaceContainerHigh,
+                          foregroundColor: colors.onSurfaceVariant,
+                        ),
+                  tooltip: sttState.isListening
+                      ? 'Stop voice input'
+                      : 'Voice input',
+                  onPressed: _toggleMic,
+                ),
+              const SizedBox(width: 2),
+              if (state.isStreaming)
+                IconButton(
+                  key: const Key('chatStopButton'),
+                  icon: const Icon(Icons.stop),
+                  style: IconButton.styleFrom(
+                    backgroundColor: colors.secondaryContainer,
+                    foregroundColor: colors.onSecondaryContainer,
+                  ),
+                  tooltip: 'Stop',
+                  onPressed: _stop,
+                )
+              else
+                IconButton(
+                  key: const Key('chatSendButton'),
+                  icon: const Icon(Icons.send),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _canSend
+                        ? colors.primary
+                        : colors.surfaceContainerHighest,
+                    foregroundColor: _canSend
+                        ? colors.onPrimary
+                        : colors.onSurfaceVariant,
+                  ),
+                  tooltip: 'Send',
+                  onPressed: _send,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sttStatus(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        key: const Key('chatProcessingIndicator'),
         children: [
+          const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
           Expanded(
-            child: TextField(
-              key: const Key('chatInput'),
-              controller: _input,
-              focusNode: _inputFocus,
-              minLines: 1,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Type a message',
-                border: OutlineInputBorder(),
+            child: Text(
+              'Processing...',
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          if (state.isStreaming)
-            IconButton(
-              key: const Key('chatStopButton'),
-              icon: const Icon(Icons.stop),
-              tooltip: 'Stop',
-              onPressed: _stop,
-            )
-          else
-            IconButton(
-              key: const Key('chatSendButton'),
-              icon: const Icon(Icons.send),
-              tooltip: 'Send',
-              onPressed: _send,
-            ),
         ],
       ),
     );
