@@ -15,6 +15,7 @@ import 'package:parley/services/documents/document_initializer.dart';
 import 'package:parley/services/documents/file_document_store.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
+import 'package:parley/services/settings/stt_settings.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,7 @@ void main() async {
     prefs,
     keys,
   );
+  final SttSettings sttSettings = SharedPreferencesSttSettings(prefs);
   const Clock clock = SystemClock();
   final FileDocumentStore documents = await createFileDocumentStore(clock);
   await ensureDefaultDocuments(
@@ -41,6 +43,7 @@ void main() async {
       overrides: [
         secureKeyStoreProvider.overrideWithValue(keys),
         settingsRepositoryProvider.overrideWithValue(settings),
+        sttSettingsProvider.overrideWithValue(sttSettings),
         documentStoreProvider.overrideWithValue(documents),
         dictionaryServiceProvider.overrideWithValue(dictionary),
       ],

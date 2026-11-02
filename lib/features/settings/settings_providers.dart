@@ -11,6 +11,7 @@ import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/llm/model_catalog.dart';
 import 'package:parley/services/settings/secure_key_store.dart';
 import 'package:parley/services/settings/settings_repository.dart';
+import 'package:parley/services/settings/stt_settings.dart';
 
 /// Tutor documents. In-memory until task 5.1 provides the file version.
 final documentStoreProvider = Provider<DocumentStore>((ref) {
@@ -28,6 +29,13 @@ final secureKeyStoreProvider = Provider<SecureKeyStore>((ref) {
 /// [SharedPreferencesSettingsRepository].
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return MemorySettingsRepository(ref.watch(secureKeyStoreProvider));
+});
+
+/// Voice-input settings. In-memory by default so widget tests work without
+/// `SharedPreferences`; `main()` overrides with
+/// [SharedPreferencesSttSettings].
+final sttSettingsProvider = Provider<SttSettings>((ref) {
+  return MemorySttSettings();
 });
 
 /// LLM client built from the current settings and key store.
