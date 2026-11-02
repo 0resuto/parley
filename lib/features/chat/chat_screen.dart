@@ -18,6 +18,7 @@ import 'message_speech_controller.dart';
 import 'message_text.dart';
 import 'rules_tool.dart';
 import 'stt_controller.dart';
+import 'stt_mic_button.dart';
 import 'stt_spectrum.dart';
 import 'tokenizer.dart';
 import 'word_popup.dart';
@@ -956,10 +957,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildComposer(ChatState state, SttState sttState) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    // Only the offline engines compute real frequency bands. The system
+    // recognizer reports volume alone, so it gets no spectrum.
+    final bool showSpectrum =
+        sttState.isListening && ref.watch(sttSettingsProvider).engine.isLocal;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (sttState.isListening)
+        if (showSpectrum)
           const Padding(
             key: Key('chatListeningIndicator'),
             padding: EdgeInsets.fromLTRB(20, 8, 20, 2),
@@ -980,7 +985,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: sttState.isListening
-                          ? colors.error
+                          ? colors.outline
                           : colors.outlineVariant,
                       width: sttState.isListening ? 1.5 : 1,
                     ),
@@ -1003,7 +1008,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               if (sttState.isProcessing)
                 const Padding(
                   padding: EdgeInsets.all(12),
@@ -1015,24 +1020,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 )
               else
-                IconButton(
-                  key: const Key('chatMicButton'),
-                  icon: Icon(sttState.isListening ? Icons.mic : Icons.mic_none),
-                  style: sttState.isListening
-                      ? IconButton.styleFrom(
-                          backgroundColor: colors.error,
-                          foregroundColor: colors.onError,
-                        )
-                      : IconButton.styleFrom(
-                          backgroundColor: colors.surfaceContainerHigh,
-                          foregroundColor: colors.onSurfaceVariant,
-                        ),
-                  tooltip: sttState.isListening
-                      ? 'Stop voice input'
-                      : 'Voice input',
+                SttMicButton(
+                  isListening: sttState.isListening,
                   onPressed: _toggleMic,
                 ),
-              const SizedBox(width: 2),
+              const SizedBox(width: 8),
               if (state.isStreaming)
                 IconButton(
                   key: const Key('chatStopButton'),

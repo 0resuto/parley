@@ -4,10 +4,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'stt_engine.dart';
+import 'pcm_level.dart';
 import 'stt_model.dart';
 import 'stt_recognizer.dart';
 import 'stt_recorder.dart';
 import 'stt_service.dart';
+
+export 'pcm_level.dart' show pcm16Level;
 
 /// Sample rate expected by the bundled sherpa-onnx models.
 const int sttSampleRate = 16000;
@@ -30,26 +33,6 @@ String cleanOfflineTranscript(String text) {
     return '';
   }
   return cleaned;
-}
-
-/// Normalized RMS level of a PCM16 chunk, for the listening waveform.
-double pcm16Level(Uint8List bytes) {
-  if (bytes.length < 2) {
-    return 0;
-  }
-  final ByteData data = ByteData.sublistView(bytes);
-  double sum = 0;
-  int count = 0;
-  for (int i = 0; i + 1 < bytes.length; i += 2) {
-    final double sample = data.getInt16(i, Endian.little) / 32768.0;
-    sum += sample * sample;
-    count++;
-  }
-  if (count == 0) {
-    return 0;
-  }
-  final double rms = math.sqrt(sum / count);
-  return (rms / 0.2).clamp(0.0, 1.0).toDouble();
 }
 
 /// Log-spaced frequencies for the live spectrum, limited to the speech range.

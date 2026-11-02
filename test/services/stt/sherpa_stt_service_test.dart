@@ -147,11 +147,15 @@ void main() {
     expect(cleanOfflineTranscript('  [MUSIC]  '), isEmpty);
   });
 
-  test('computes a normalized level from PCM16', () {
+  test('computes a dB-scaled level from PCM16', () {
     expect(pcm16Level(Uint8List.fromList(<int>[0, 0, 0, 0])), 0);
     expect(
       pcm16Level(Uint8List.fromList(<int>[0xFF, 0x7F])),
       closeTo(1, 0.001),
+    );
+    expect(
+      pcm16Level(Uint8List.fromList(<int>[0xCD, 0x0C])),
+      closeTo(0.6, 0.01),
     );
     expect(pcm16Level(Uint8List.fromList(<int>[0, 0, 0, 16])), greaterThan(0));
   });

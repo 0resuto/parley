@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'stt_controller.dart';
 
-/// Full-width, mirrored live spectrum shown while recording.
+/// Full-width live spectrum shown while an offline model is recording.
 class SttSpectrum extends ConsumerStatefulWidget {
   const SttSpectrum({super.key});
 

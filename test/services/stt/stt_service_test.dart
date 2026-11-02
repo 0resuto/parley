@@ -69,14 +69,9 @@ void main() {
   });
 
   test('normalizes Android RMS dB levels', () {
-    expect(normalizeDbLevel(0), 1);
-    expect(normalizeDbLevel(-60), 0);
-    expect(normalizeDbLevel(-30), closeTo(0.5, 0.001));
-  });
-
-  test('builds an approximate spectrum from a level', () {
-    expect(levelSpectrum(0), everyElement(0));
-    expect(levelSpectrum(1).reduce((a, b) => a > b ? a : b), 1);
+    expect(normalizeDbLevel(10), 1);
+    expect(normalizeDbLevel(-2), 0);
+    expect(normalizeDbLevel(4), closeTo(0.5, 0.001));
   });
 
   group('mapSttError', () {
@@ -192,13 +187,13 @@ void main() {
       expect(events.whereType<SttPartial>(), isEmpty);
     });
 
-    test('microphone levels are forwarded as normalized events', () async {
+    test('microphone levels are forwarded without a fake spectrum', () async {
       await service.start();
-      engine.emitLevel(-30);
+      engine.emitLevel(4);
       await flush();
 
       expect(events.whereType<SttLevel>().single.level, closeTo(0.5, 0.001));
-      expect(events.whereType<SttAudioSpectrum>(), isNotEmpty);
+      expect(events.whereType<SttAudioSpectrum>(), isEmpty);
     });
 
     test('stop and cancel reach the engine', () async {

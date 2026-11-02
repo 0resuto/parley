@@ -164,28 +164,9 @@ SttFailure mapSttError(String code) {
   };
 }
 
-/// Maps Android's RMS dB value to a 0..1 meter level.
+/// Maps Android's RMS dB value (typically -2..10) to a 0..1 meter level.
 double normalizeDbLevel(double db) {
-  return ((db + 60) / 60).clamp(0.0, 1.0).toDouble();
-}
-
-/// Approximate spectrum for the system recognizer, which only reports level.
-List<double> levelSpectrum(double level) {
-  final double safe = level.clamp(0.0, 1.0).toDouble();
-  const int bands = 32;
-  return <double>[
-    for (int i = 0; i < bands; i++)
-      (safe *
-              (0.2 +
-                  0.8 *
-                      (1 -
-                          (i - bands / 2) *
-                              (i - bands / 2) /
-                              (bands * bands) *
-                              3)))
-          .clamp(0.0, 1.0)
-          .toDouble(),
-  ];
+  return ((db + 2) / 12).clamp(0.0, 1.0).toDouble();
 }
 
 /// True when the error means the on-device recognizer is not usable.
@@ -406,9 +387,7 @@ class SystemSttService implements SttService {
   }
 
   void _onLevel(double db) {
-    final double level = normalizeDbLevel(db);
-    _emit(SttLevel(level));
-    _emit(SttAudioSpectrum(levelSpectrum(level)));
+    _emit(SttLevel(normalizeDbLevel(db)));
   }
 
   void _onResult(String text, bool isFinal) {

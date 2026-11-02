@@ -156,7 +156,7 @@ class SttController extends Notifier<SttState> {
         state = state.copyWith(phase: SttPhase.listening, partial: text);
       case SttLevel():
       case SttAudioSpectrum():
-        // Audio data drives the spectrum provider, not the controller state.
+        // Audio data drives the spectrum and level providers, not the state.
         break;
       case SttFinalResult(:final String text):
         state = state.copyWith(
@@ -197,4 +197,13 @@ final sttSpectrumProvider = StreamProvider<List<double>>((ref) {
       .events
       .where((SttEvent event) => event is SttAudioSpectrum)
       .map((SttEvent event) => (event as SttAudioSpectrum).bands);
+});
+
+/// Latest normalized microphone level, used by the recording mic button.
+final sttLevelProvider = StreamProvider<double>((ref) {
+  return ref
+      .watch(sttServiceProvider)
+      .events
+      .where((SttEvent event) => event is SttLevel)
+      .map((SttEvent event) => (event as SttLevel).level);
 });

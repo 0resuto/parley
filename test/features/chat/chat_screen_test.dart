@@ -16,6 +16,7 @@ import 'package:parley/services/documents/document_store.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/settings/settings_repository.dart';
 import 'package:parley/services/settings/stt_settings.dart';
+import 'package:parley/services/stt/stt_engine.dart';
 import 'package:parley/services/stt/stt_providers.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'package:parley/services/tts/tts_service.dart';
@@ -817,6 +818,7 @@ void main() {
     testWidgets('mic inserts partial and final text', (
       WidgetTester tester,
     ) async {
+      await sttSettings.setEngine(SttEngineKind.moonshine);
       await pumpChatNoHook(tester);
       await tester.tap(find.byKey(const Key('chatMicButton')));
       await tester.pump();
@@ -858,8 +860,92 @@ void main() {
 
       stt.emitStarted();
       await tester.pump();
-      expect(find.byKey(const Key('chatListeningIndicator')), findsOneWidget);
+      expect(find.byTooltip('Stop voice input'), findsOneWidget);
       expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
+    });
+
+    testWidgets('system listening shows no spectrum', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      expect(sttSettings.engine, SttEngineKind.system);
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      expect(find.byTooltip('Stop voice input'), findsOneWidget);
+      expect(find.byKey(const Key('chatListeningIndicator')), findsNothing);
+      expect(find.byKey(const Key('chatSpectrum')), findsNothing);
+    });
+
+    testWidgets('mic button grows with the input level', (
+      WidgetTester tester,
+    ) async {
+      double scale() => tester
+          .widget<Transform>(find.byKey(const Key('chatMicScale')))
+          .transform
+          .getMaxScaleOnAxis();
+
+      await pumpChatNoHook(tester);
+      expect(scale(), 1);
+
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+      stt.emitLevel(0.9);
+      await tester.pump();
+      expect(scale(), greaterThan(1.2));
+
+      stt.emitStopped();
+      await tester.pump();
+      expect(scale(), 1);
+    });
+
+    testWidgets('mic size follows intermediate levels', (
+      WidgetTester tester,
+    ) async {
+      double scale() => tester
+          .widget<Transform>(find.byKey(const Key('chatMicScale')))
+          .transform
+          .getMaxScaleOnAxis();
+
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+
+      stt.emitLevel(0.25);
+      await tester.pump();
+      final double soft = scale();
+
+      stt.emitLevel(0.8);
+      await tester.pump();
+      final double loud = scale();
+
+      expect(soft, greaterThan(1.05));
+      expect(loud, greaterThan(soft + 0.1));
+    });
+
+    testWidgets('mic keeps a soft pulse while listening', (
+      WidgetTester tester,
+    ) async {
+      double scale() => tester
+          .widget<Transform>(find.byKey(const Key('chatMicScale')))
+          .transform
+          .getMaxScaleOnAxis();
+
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatMicButton')));
+      await tester.pump();
+      stt.emitLevel(0.5);
+      await tester.pump();
+
+      final List<double> samples = <double>[];
+      for (int i = 0; i < 8; i++) {
+        samples.add(scale());
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final double low = samples.reduce((double a, double b) => a < b ? a : b);
+      final double high = samples.reduce((double a, double b) => a > b ? a : b);
+      expect(high - low, greaterThan(0.015));
     });
 
     testWidgets('dictation keeps text typed before the microphone', (
