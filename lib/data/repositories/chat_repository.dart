@@ -254,6 +254,79 @@ class ChatRepository {
     });
   }
 
+  /// Deletes one message and bumps the owning conversation's `updated_at`.
+  Future<void> deleteMessage(int id) async {
+    final List<db.Message> rows = await (_db.select(
+      _db.messages,
+    )..where((t) => t.id.equals(id))).get();
+    if (rows.isEmpty) {
+      return;
+    }
+    final DateTime now = _clock.now().toUtc();
+    await _db.transaction(() async {
+      await (_db.delete(_db.messages)..where((t) => t.id.equals(id))).go();
+      await (_db.update(_db.conversations)
+            ..where((t) => t.id.equals(rows.first.conversationId)))
+          .write(db.ConversationsCompanion(updatedAt: Value(now)));
+    });
+  }
+
+  /// Replaces a user message, drops every message after it and retitles the
+  /// conversation when the edited message is the first user turn.
+  Future<void> editUserMessage(int id, String content) async {
+    final String trimmed = content.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    final List<db.Message> rows = await (_db.select(
+      _db.messages,
+    )..where((t) => t.id.equals(id))).get();
+    if (rows.isEmpty || rows.first.role != ChatRole.user.value) {
+      return;
+    }
+    final db.Message row = rows.first;
+    final DateTime now = _clock.now().toUtc();
+    final List<db.Message> userRows =
+        await (_db.select(_db.messages)
+              ..where(
+                (t) =>
+                    t.conversationId.equals(row.conversationId) &
+                    t.role.equals(ChatRole.user.value),
+              )
+              ..orderBy([
+                (t) => OrderingTerm(expression: t.id, mode: OrderingMode.asc),
+              ]))
+            .get();
+    String? nextTitle;
+    if (userRows.isNotEmpty && userRows.first.id == id) {
+      final Runes runes = trimmed.runes;
+      nextTitle = runes.length <= conversationTitleLength
+          ? trimmed
+          : String.fromCharCodes(runes.take(conversationTitleLength));
+    }
+    await _db.transaction(() async {
+      await (_db.update(_db.messages)..where((t) => t.id.equals(id))).write(
+        db.MessagesCompanion(content: Value(trimmed)),
+      );
+      await (_db.delete(_db.messages)..where(
+            (t) =>
+                t.conversationId.equals(row.conversationId) &
+                t.id.isBiggerThanValue(id),
+          ))
+          .go();
+      await (_db.update(
+        _db.conversations,
+      )..where((t) => t.id.equals(row.conversationId))).write(
+        nextTitle == null
+            ? db.ConversationsCompanion(updatedAt: Value(now))
+            : db.ConversationsCompanion(
+                updatedAt: Value(now),
+                title: Value(nextTitle),
+              ),
+      );
+    });
+  }
+
   Conversation _toConversation(db.Conversation row) {
     return Conversation(
       id: row.id,

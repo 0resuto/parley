@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/core/failures.dart';
+import 'package:parley/core/theme.dart';
 import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
@@ -14,6 +16,7 @@ import 'package:parley/features/settings/settings_screen.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'package:parley/services/stt/stt_engine.dart';
 import 'package:parley/services/stt/stt_service.dart';
+import '../../debug/demo_chat.dart';
 import 'chat_controller.dart';
 import 'chat_session_store.dart';
 import 'conversations_screen.dart';
@@ -621,6 +624,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 
+  Future<void> _openDemoChat() async {
+    _inputFocus.unfocus();
+    try {
+      final int id = await ensureDemoChat(ref.read(chatRepositoryProvider));
+      if (!mounted) {
+        return;
+      }
+      await _openConversation(id);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create the demo chat.')),
+      );
+    }
+  }
+
   void _openWordPopup(
     UnitIndex index,
     String surface,
@@ -741,6 +762,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       appBar: AppBar(
         title: Text(_title),
         actions: [
+          if (demoChatEnabled)
+            IconButton(
+              key: const Key('chatDemoButton'),
+              icon: const Icon(Icons.science_outlined),
+              tooltip: 'Open demo chat',
+              onPressed: _openDemoChat,
+            ),
           TextButton(
             key: const Key('chatNewChatButton'),
             onPressed: _newChat,
@@ -789,6 +817,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return const Center(child: Text('No messages yet. Say hello!'));
     }
     final int extra = streaming ? 1 : 0;
+    int lastUserIndex = -1;
+    int lastAssistantIndex = -1;
+    for (int i = messages.length - 1; i >= 0; i--) {
+      if (lastUserIndex == -1 && messages[i].role == ChatRole.user) {
+        lastUserIndex = i;
+      }
+      if (lastAssistantIndex == -1 && messages[i].role == ChatRole.assistant) {
+        lastAssistantIndex = i;
+      }
+      if (lastUserIndex != -1 && lastAssistantIndex != -1) {
+        break;
+      }
+    }
+    final bool canRegenerate = lastAssistantIndex > lastUserIndex;
     return NotificationListener<ScrollNotification>(
       onNotification: (ScrollNotification notification) {
         if (notification is ScrollUpdateNotification &&
@@ -814,9 +856,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           final ChatMessage message = messages[indexBuilder];
           switch (message.role) {
             case ChatRole.user:
-              return _userBubble(context, message.content, index);
+              return _userBubble(
+                context,
+                message,
+                index,
+                canEdit: !streaming && indexBuilder == lastUserIndex,
+              );
             case ChatRole.assistant:
-              return _assistantText(context, message, index);
+              return _assistantText(
+                context,
+                message,
+                index,
+                canRegenerate:
+                    !streaming &&
+                    canRegenerate &&
+                    indexBuilder == lastAssistantIndex,
+              );
             case ChatRole.event:
               return _eventChip(context, message);
           }
@@ -825,26 +880,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget _userBubble(BuildContext context, String content, UnitIndex index) {
+  Widget _userBubble(
+    BuildContext context,
+    ChatMessage message,
+    UnitIndex index, {
+    required bool canEdit,
+  }) {
     return Align(
       alignment: Alignment.centerRight,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.sizeOf(context).width * 0.82,
         ),
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: MessageText(
-            rawText: content,
-            index: index,
-            style: Theme.of(context).textTheme.bodyLarge,
-            onWordTap: (surface, key, sentence) =>
-                _openWordPopup(index, surface, key, sentence),
+        child: GestureDetector(
+          onLongPressStart: (LongPressStartDetails details) =>
+              _showMessageActions(
+                message,
+                globalPosition: details.globalPosition,
+                canEdit: canEdit,
+                canRegenerate: false,
+              ),
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: chatBubbleColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: MessageText(
+              rawText: message.content,
+              index: index,
+              style: Theme.of(context).textTheme.bodyLarge,
+              onWordTap: (surface, key, sentence) =>
+                  _openWordPopup(index, surface, key, sentence),
+            ),
           ),
         ),
       ),
@@ -868,38 +937,196 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _assistantText(
     BuildContext context,
     ChatMessage message,
-    UnitIndex index,
-  ) {
+    UnitIndex index, {
+    required bool canRegenerate,
+  }) {
     final MessageSpeechState speech = ref.watch(messageSpeechProvider);
     final bool isPlaying = speech.playingId == message.id;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: MessageText(
-              rawText: message.content,
-              index: index,
-              style: Theme.of(context).textTheme.bodyLarge,
-              onWordTap: (surface, key, sentence) =>
-                  _openWordPopup(index, surface, key, sentence),
+    return GestureDetector(
+      onLongPressStart: (LongPressStartDetails details) => _showMessageActions(
+        message,
+        globalPosition: details.globalPosition,
+        canEdit: false,
+        canRegenerate: canRegenerate,
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: MessageText(
+                rawText: message.content,
+                index: index,
+                style: Theme.of(context).textTheme.bodyLarge,
+                onWordTap: (surface, key, sentence) =>
+                    _openWordPopup(index, surface, key, sentence),
+              ),
             ),
-          ),
-          IconButton(
-            key: Key(
-              isPlaying
-                  ? 'assistantStopButton_${message.id}'
-                  : 'assistantPlayButton_${message.id}',
+            IconButton(
+              key: Key(
+                isPlaying
+                    ? 'assistantStopButton_${message.id}'
+                    : 'assistantPlayButton_${message.id}',
+              ),
+              icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
+              tooltip: isPlaying ? 'Stop' : 'Play',
+              onPressed: () => _toggleSpeech(message),
             ),
-            icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
-            tooltip: isPlaying ? 'Stop' : 'Play',
-            onPressed: () => _toggleSpeech(message),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _showMessageActions(
+    ChatMessage message, {
+    required Offset globalPosition,
+    required bool canEdit,
+    required bool canRegenerate,
+  }) async {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final Offset local = overlay.globalToLocal(globalPosition);
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final List<String> labels = <String>[
+      'Copy',
+      if (canEdit) 'Edit',
+      if (canRegenerate) 'Regenerate',
+    ];
+    double longestLabel = 0;
+    for (final String label in labels) {
+      final TextPainter painter = TextPainter(
+        text: TextSpan(text: label, style: theme.textTheme.bodyMedium),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      longestLabel = painter.width > longestLabel
+          ? painter.width
+          : longestLabel;
+      painter.dispose();
+    }
+    final double availableWidth = MediaQuery.sizeOf(context).width - 16;
+    final double desiredWidth = 16 + 20 + 12 + longestLabel + 16;
+    final double menuWidth = desiredWidth > availableWidth
+        ? availableWidth
+        : desiredWidth;
+    PopupMenuItem<_MessageAction> item(
+      Key key,
+      IconData icon,
+      String label,
+      _MessageAction value,
+    ) {
+      return PopupMenuItem<_MessageAction>(
+        key: key,
+        value: value,
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: colors.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Flexible(child: Text(label, style: theme.textTheme.bodyMedium)),
+          ],
+        ),
+      );
+    }
+
+    final _MessageAction? action = await showMenu<_MessageAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        local.dx,
+        local.dy,
+        overlay.size.width - local.dx,
+        overlay.size.height - local.dy,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.4)),
+      ),
+      color: colors.surfaceContainerHighest,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      constraints: BoxConstraints.tightFor(width: menuWidth),
+      menuPadding: const EdgeInsets.symmetric(vertical: 6),
+      clipBehavior: Clip.antiAlias,
+      popUpAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+      ),
+      items: [
+        item(
+          const Key('chatMessageCopy'),
+          Icons.copy,
+          'Copy',
+          _MessageAction.copy,
+        ),
+        if (canEdit)
+          item(
+            const Key('chatMessageEdit'),
+            Icons.edit_outlined,
+            'Edit',
+            _MessageAction.edit,
+          ),
+        if (canRegenerate)
+          item(
+            const Key('chatMessageRegenerate'),
+            Icons.refresh,
+            'Regenerate',
+            _MessageAction.regenerate,
+          ),
+      ],
+    );
+    if (!mounted) {
+      return;
+    }
+    switch (action) {
+      case null:
+        return;
+      case _MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.content));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Copied to clipboard.')));
+        }
+      case _MessageAction.edit:
+        await _editMessage(message);
+      case _MessageAction.regenerate:
+        await ref
+            .read(chatControllerProvider(_conversationId!).notifier)
+            .regenerate();
+        if (mounted) {
+          await _refreshTitle();
+          _scrollToBottom();
+          await _maybeAutoPlay(_conversationId!);
+        }
+    }
+  }
+
+  Future<void> _editMessage(ChatMessage message) async {
+    final String? text = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return _EditMessageDialog(initialText: message.content);
+      },
+    );
+    if (text == null || !mounted) {
+      return;
+    }
+    await ref
+        .read(chatControllerProvider(_conversationId!).notifier)
+        .editLastUserMessage(message.id, text);
+    if (mounted) {
+      await _refreshTitle();
+      _scrollToBottom();
+      await _maybeAutoPlay(_conversationId!);
+    }
   }
 
   Widget _eventChip(BuildContext context, ChatMessage message) {
@@ -1234,6 +1461,66 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
+    );
+  }
+}
+
+enum _MessageAction { copy, edit, regenerate }
+
+class _EditMessageDialog extends StatefulWidget {
+  const _EditMessageDialog({required this.initialText});
+
+  final String initialText;
+
+  @override
+  State<_EditMessageDialog> createState() => _EditMessageDialogState();
+}
+
+class _EditMessageDialogState extends State<_EditMessageDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit message'),
+      content: TextField(
+        key: const Key('chatEditMessageField'),
+        controller: _controller,
+        autofocus: true,
+        minLines: 1,
+        maxLines: 5,
+        decoration: const InputDecoration(border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('chatEditMessageCancel'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          key: const Key('chatEditMessageSave'),
+          onPressed: () {
+            final String value = _controller.text.trim();
+            if (value.isEmpty) {
+              return;
+            }
+            Navigator.of(context).pop(value);
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

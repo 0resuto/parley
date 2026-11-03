@@ -218,4 +218,65 @@ class FakeChatRepository implements ChatRepository {
       }
     }
   }
+
+  @override
+  Future<void> deleteMessage(int id) async {
+    final int index = _messages.indexWhere((ChatMessage m) => m.id == id);
+    if (index == -1) {
+      return;
+    }
+    final int conversationId = _messages[index].conversationId;
+    _messages.removeAt(index);
+    _bumpConversation(conversationId);
+  }
+
+  @override
+  Future<void> editUserMessage(int id, String content) async {
+    final String trimmed = content.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    final int index = _messages.indexWhere((ChatMessage m) => m.id == id);
+    if (index == -1 || _messages[index].role != ChatRole.user) {
+      return;
+    }
+    final ChatMessage message = _messages[index];
+    _messages[index] = message.copyWith(content: trimmed);
+    _messages.removeWhere(
+      (ChatMessage m) =>
+          m.conversationId == message.conversationId && m.id > id,
+    );
+    final List<ChatMessage> users = _messages
+        .where(
+          (ChatMessage m) =>
+              m.conversationId == message.conversationId &&
+              m.role == ChatRole.user,
+        )
+        .toList();
+    String? title;
+    if (users.isNotEmpty && users.first.id == id) {
+      final Runes runes = trimmed.runes;
+      title = runes.length <= conversationTitleLength
+          ? trimmed
+          : String.fromCharCodes(runes.take(conversationTitleLength));
+    }
+    final int conversationIndex = _conversations.indexWhere(
+      (Conversation c) => c.id == message.conversationId,
+    );
+    if (conversationIndex != -1) {
+      _conversations[conversationIndex] = _conversations[conversationIndex]
+          .copyWith(title: title, updatedAt: _clock.now().toUtc());
+    }
+  }
+
+  void _bumpConversation(int conversationId) {
+    final int index = _conversations.indexWhere(
+      (Conversation c) => c.id == conversationId,
+    );
+    if (index != -1) {
+      _conversations[index] = _conversations[index].copyWith(
+        updatedAt: _clock.now().toUtc(),
+      );
+    }
+  }
 }

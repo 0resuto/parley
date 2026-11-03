@@ -337,6 +337,110 @@ void main() {
       expect(stateOf(id).isStreaming, isFalse);
     });
 
+    test('regenerate replaces the newest assistant reply', () async {
+      final int id = await makeConversation();
+      final ChatRepository chats = container.read(chatRepositoryProvider);
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.user,
+        content: 'question',
+      );
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.assistant,
+        content: 'old answer',
+      );
+      await notifier(id).refresh();
+      llm.streamHandler = (_) => Stream.fromIterable([
+        const TextDelta('new answer'),
+        const StreamDone(),
+      ]);
+
+      await notifier(id).regenerate();
+
+      final ChatState state = stateOf(id);
+      expect(state.isStreaming, isFalse);
+      expect(state.error, isNull);
+      expect(state.messages, hasLength(2));
+      expect(state.messages.first.content, 'question');
+      expect(state.messages.last.content, 'new answer');
+      expect(llm.streamCalls, hasLength(1));
+      final List<LlmMessage> request = llm.streamCalls.single;
+      expect(request.where((m) => m.role == LlmRole.user), hasLength(1));
+      expect(request.map((m) => m.content), isNot(contains('old answer')));
+    });
+
+    test('editLastUserMessage updates text and drops the old reply', () async {
+      final int id = await makeConversation();
+      final ChatRepository chats = container.read(chatRepositoryProvider);
+      final ChatMessage user = await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.user,
+        content: 'old question',
+      );
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.assistant,
+        content: 'old answer',
+      );
+      await notifier(id).refresh();
+      llm.streamHandler = (_) => Stream.fromIterable([
+        const TextDelta('new answer'),
+        const StreamDone(),
+      ]);
+
+      await notifier(id).editLastUserMessage(user.id, '  new question  ');
+
+      final ChatState state = stateOf(id);
+      expect(state.isStreaming, isFalse);
+      expect(state.error, isNull);
+      expect(state.messages, hasLength(2));
+      expect(state.messages.first.content, 'new question');
+      expect(state.messages.last.content, 'new answer');
+      final Conversation? conversation = await chats.getConversation(id);
+      expect(conversation!.title, 'new question');
+      expect(
+        llm.streamCalls.single.map((m) => m.content),
+        contains('new question'),
+      );
+      expect(
+        llm.streamCalls.single.map((m) => m.content),
+        isNot(contains('old answer')),
+      );
+    });
+
+    test('edit ignores an older user message', () async {
+      final int id = await makeConversation();
+      final ChatRepository chats = container.read(chatRepositoryProvider);
+      final ChatMessage first = await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.user,
+        content: 'first question',
+      );
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.assistant,
+        content: 'first answer',
+      );
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.user,
+        content: 'second question',
+      );
+      await chats.addMessage(
+        conversationId: id,
+        role: ChatRole.assistant,
+        content: 'second answer',
+      );
+      await notifier(id).refresh();
+
+      await notifier(id).editLastUserMessage(first.id, 'rewritten');
+
+      expect(stateOf(id).messages, hasLength(4));
+      expect(stateOf(id).messages.first.content, 'first question');
+      expect(llm.streamCalls, isEmpty);
+    });
+
     test(
       'the controller is disposed when it has no listeners (A-31)',
       () async {

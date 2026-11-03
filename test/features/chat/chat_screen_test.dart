@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/core/failures.dart';
@@ -917,6 +918,185 @@ void main() {
       final Rect input = tester.getRect(find.byKey(const Key('chatInput')));
       // The list reaches below the field: chat content can scroll behind it.
       expect(list.bottom, greaterThan(input.bottom));
+    });
+
+    testWidgets('debug demo chat is added to history', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      await tester.tap(find.byKey(const Key('chatDemoButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Demo chat'), findsWidgets);
+      final List<Conversation> conversations = await chats.listConversations();
+      final Conversation demo = conversations.singleWhere(
+        (Conversation c) => c.title == 'Demo chat',
+      );
+      final List<ChatMessage> messages = await chats.listMessages(demo.id);
+      expect(messages, hasLength(8));
+      expect(messages.first.content, 'Demo chat');
+      expect(messages.last.role, ChatRole.assistant);
+    });
+
+    testWidgets('copy and edit actions for a user message', (
+      WidgetTester tester,
+    ) async {
+      final Conversation conversation = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'original message',
+      );
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'assistant reply',
+      );
+      llm.streamHandler = (_) => Stream.fromIterable([
+        const TextDelta('fresh reply'),
+        const StreamDone(),
+      ]);
+      await pumpChatNoHook(tester);
+
+      await tester.longPress(
+        find.descendant(
+          of: find.byKey(const Key('chatList')),
+          matching: find.text('original message'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageEdit')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageRegenerate')), findsNothing);
+
+      final List<MethodCall> clipboard = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboard.add(call);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('chatMessageCopy')));
+      await tester.pumpAndSettle();
+      expect(clipboard.single.arguments['text'], 'original message');
+      expect(find.text('Copied to clipboard.'), findsOneWidget);
+
+      await tester.longPress(
+        find.descendant(
+          of: find.byKey(const Key('chatList')),
+          matching: find.text('original message'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chatMessageEdit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('chatEditMessageField')),
+        'corrected message',
+      );
+      await tester.tap(find.byKey(const Key('chatEditMessageSave')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('corrected message'), findsWidgets);
+      expect(find.text('original message'), findsNothing);
+      expect(find.text('fresh reply'), findsOneWidget);
+      expect(find.text('assistant reply'), findsNothing);
+    });
+
+    testWidgets('regenerate replaces the newest assistant reply', (
+      WidgetTester tester,
+    ) async {
+      final Conversation conversation = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'question',
+      );
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'old reply',
+      );
+      llm.streamHandler = (_) => Stream.fromIterable([
+        const TextDelta('new reply'),
+        const StreamDone(),
+      ]);
+      await pumpChatNoHook(tester);
+
+      await tester.longPress(
+        find.descendant(
+          of: find.byKey(const Key('chatList')),
+          matching: find.text('old reply'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageRegenerate')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageEdit')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('chatMessageRegenerate')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('new reply'), findsOneWidget);
+      expect(find.text('old reply'), findsNothing);
+      expect(llm.streamCalls, hasLength(1));
+    });
+
+    testWidgets('older messages offer only copy', (WidgetTester tester) async {
+      final Conversation conversation = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'first message',
+      );
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'first reply',
+      );
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'second message',
+      );
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.assistant,
+        content: 'second reply',
+      );
+      await pumpChatNoHook(tester);
+
+      await tester.longPress(
+        find.descendant(
+          of: find.byKey(const Key('chatList')),
+          matching: find.text('first message'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageEdit')), findsNothing);
+
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
+      await tester.longPress(
+        find.descendant(
+          of: find.byKey(const Key('chatList')),
+          matching: find.text('first reply'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageRegenerate')), findsNothing);
     });
   });
 

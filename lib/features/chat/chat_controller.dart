@@ -19,6 +19,7 @@ import 'package:parley/services/srs/review_service.dart';
 import 'package:parley/services/tutor/notes_updater.dart';
 import 'package:parley/services/tutor/tutor_scheduler.dart';
 import 'package:parley/services/tutor/word_judge.dart';
+import '../../debug/demo_chat.dart';
 
 /// Network connectivity for the chat controller.
 ///
@@ -368,6 +369,146 @@ class ChatController extends Notifier<ChatState> {
     await _runStream(request);
   }
 
+  /// Regenerates the latest assistant reply without adding a user message.
+  ///
+  /// The previous reply is deleted first; the screen only offers this for the
+  /// newest reply so older turns are never rewritten.
+  Future<void> regenerate() async {
+    if (state.isStreaming) {
+      return;
+    }
+    if (!await _checkReady(null)) {
+      return;
+    }
+    final ChatRepository chats = ref.read(chatRepositoryProvider);
+    late final List<ChatMessage> current;
+    try {
+      current = await chats.listMessages(conversationId);
+    } catch (_) {
+      if (!ref.mounted) {
+        return;
+      }
+      state = state.copyWith(error: const ServerFailure());
+      return;
+    }
+    if (!ref.mounted) {
+      return;
+    }
+    int assistantIndex = -1;
+    for (int i = current.length - 1; i >= 0; i--) {
+      if (current[i].role == ChatRole.assistant) {
+        assistantIndex = i;
+        break;
+      }
+    }
+    if (assistantIndex == -1) {
+      return;
+    }
+    for (int i = assistantIndex + 1; i < current.length; i++) {
+      if (current[i].role == ChatRole.user) {
+        return;
+      }
+    }
+    try {
+      await chats.deleteMessage(current[assistantIndex].id);
+      if (!ref.mounted) {
+        return;
+      }
+      final List<ChatMessage> messages = await chats.listMessages(
+        conversationId,
+      );
+      if (!ref.mounted) {
+        return;
+      }
+      state = state.copyWith(
+        messages: messages,
+        isLoading: false,
+        isStreaming: true,
+        streamingText: '',
+        clearError: true,
+        draft: '',
+      );
+    } catch (_) {
+      if (ref.mounted) {
+        state = state.copyWith(error: const ServerFailure());
+      }
+      return;
+    }
+    final List<LlmMessage>? request = await _buildRequest();
+    if (request == null) {
+      return;
+    }
+    await _runStream(request);
+  }
+
+  /// Replaces the newest user message and regenerates the reply.
+  Future<void> editLastUserMessage(int messageId, String text) async {
+    if (state.isStreaming) {
+      return;
+    }
+    final String trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    if (!await _checkReady(null)) {
+      return;
+    }
+    final ChatRepository chats = ref.read(chatRepositoryProvider);
+    late final List<ChatMessage> current;
+    try {
+      current = await chats.listMessages(conversationId);
+    } catch (_) {
+      if (!ref.mounted) {
+        return;
+      }
+      state = state.copyWith(error: const ServerFailure());
+      return;
+    }
+    if (!ref.mounted) {
+      return;
+    }
+    ChatMessage? lastUser;
+    for (int i = current.length - 1; i >= 0; i--) {
+      if (current[i].role == ChatRole.user) {
+        lastUser = current[i];
+        break;
+      }
+    }
+    if (lastUser == null || lastUser.id != messageId) {
+      return;
+    }
+    try {
+      await chats.editUserMessage(messageId, trimmed);
+      if (!ref.mounted) {
+        return;
+      }
+      final List<ChatMessage> messages = await chats.listMessages(
+        conversationId,
+      );
+      if (!ref.mounted) {
+        return;
+      }
+      state = state.copyWith(
+        messages: messages,
+        isLoading: false,
+        isStreaming: true,
+        streamingText: '',
+        clearError: true,
+        draft: '',
+      );
+    } catch (_) {
+      if (ref.mounted) {
+        state = state.copyWith(error: const ServerFailure());
+      }
+      return;
+    }
+    final List<LlmMessage>? request = await _buildRequest();
+    if (request == null) {
+      return;
+    }
+    await _runStream(request);
+  }
+
   /// Checks LLM configuration and connectivity before streaming.
   ///
   /// Returns false and exposes the failure when not ready. When [text] is
@@ -455,7 +596,11 @@ class ChatController extends Notifier<ChatState> {
   }
 
   Future<void> _runStreamBody(List<LlmMessage> request) async {
-    final LlmClient llm = ref.read(llmClientProvider);
+    final LlmClient llm = await resolveChatLlmClient(
+      chats: ref.read(chatRepositoryProvider),
+      conversationId: conversationId,
+      real: ref.read(llmClientProvider),
+    );
     _buffer = '';
     _stopped = false;
     try {
