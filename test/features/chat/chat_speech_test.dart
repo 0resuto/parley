@@ -151,6 +151,7 @@ void main() {
 
   Future<void> send(WidgetTester tester, String text) async {
     await tester.enterText(find.byKey(const Key('chatInput')), text);
+    await tester.pump();
     await tester.tap(find.byKey(const Key('chatSendButton')));
     await tester.pumpAndSettle();
   }

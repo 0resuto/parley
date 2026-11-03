@@ -754,9 +754,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
+          Positioned.fill(
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
                 _onListHeight(constraints.maxHeight);
@@ -764,8 +764,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               },
             ),
           ),
-          if (state.error != null) _buildError(context, state),
-          _buildComposer(state, sttState),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (state.error != null) _buildError(context, state),
+                _buildComposer(state, sttState),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -794,7 +802,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       child: ListView.builder(
         key: const Key('chatList'),
         controller: _scroll,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: messages.length + extra,
         itemBuilder: (BuildContext context, int indexBuilder) {
           if (indexBuilder >= messages.length) {
@@ -1039,6 +1047,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ),
     );
     final bool showSpectrum = voiceReady && sttState.isListening;
+    final Widget? trailing = _trailingAction(state, sttState, voiceReady);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1081,62 +1090,125 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ),
                   ),
                 ),
-                if (voiceReady)
-                  SizedBox(
-                    width: 52,
-                    height: 52,
-                    child: sttState.isProcessing
-                        ? const Center(
-                            child: SizedBox(
-                              key: Key('chatMicBusy'),
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : Center(
-                            child: SttMicButton(
-                              isListening: sttState.isListening,
-                              onPressed: _toggleMic,
-                            ),
-                          ),
+                if (trailing != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: AnimatedSwitcher(
+                        key: const Key('chatTrailingAction'),
+                        duration: const Duration(milliseconds: 180),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder:
+                            (Widget child, Animation<double> animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: ScaleTransition(
+                                  scale: Tween<double>(begin: 0.82, end: 1)
+                                      .animate(
+                                        CurvedAnimation(
+                                          parent: animation,
+                                          curve: Curves.easeOut,
+                                        ),
+                                      ),
+                                  child: child,
+                                ),
+                              );
+                            },
+                        child: trailing,
+                      ),
+                    ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
-                  child: state.isStreaming
-                      ? IconButton(
-                          key: const Key('chatStopButton'),
-                          icon: const Icon(Icons.stop),
-                          visualDensity: VisualDensity.compact,
-                          style: IconButton.styleFrom(
-                            backgroundColor: colors.secondaryContainer,
-                            foregroundColor: colors.onSecondaryContainer,
-                          ),
-                          tooltip: 'Stop',
-                          onPressed: _stop,
-                        )
-                      : IconButton(
-                          key: const Key('chatSendButton'),
-                          icon: const Icon(Icons.send),
-                          visualDensity: VisualDensity.compact,
-                          style: IconButton.styleFrom(
-                            backgroundColor: _canSend
-                                ? colors.primary
-                                : colors.surfaceContainerHighest,
-                            foregroundColor: _canSend
-                                ? colors.onPrimary
-                                : colors.onSurfaceVariant,
-                          ),
-                          tooltip: 'Send',
-                          onPressed: _send,
-                        ),
-                ),
               ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  Widget? _trailingAction(ChatState state, SttState sttState, bool voiceReady) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    if (state.isStreaming) {
+      return KeyedSubtree(
+        key: const ValueKey<String>('stop'),
+        child: Center(
+          child: IconButton(
+            key: const Key('chatStopButton'),
+            icon: const Icon(Icons.stop),
+            iconSize: composerActionIconSize,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(
+              width: composerActionSize,
+              height: composerActionSize,
+            ),
+            visualDensity: composerActionDensity,
+            style: IconButton.styleFrom(
+              backgroundColor: colors.secondaryContainer,
+              foregroundColor: colors.onSecondaryContainer,
+            ),
+            tooltip: 'Stop',
+            onPressed: _stop,
+          ),
+        ),
+      );
+    }
+    if (voiceReady && sttState.isProcessing) {
+      return const KeyedSubtree(
+        key: ValueKey<String>('busy'),
+        child: Center(
+          child: SizedBox(
+            key: Key('chatMicBusy'),
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (voiceReady && sttState.isListening) {
+      return KeyedSubtree(
+        key: const ValueKey<String>('mic'),
+        child: Center(
+          child: SttMicButton(isListening: true, onPressed: _toggleMic),
+        ),
+      );
+    }
+    if (_canSend) {
+      return KeyedSubtree(
+        key: const ValueKey<String>('send'),
+        child: Center(
+          child: IconButton(
+            key: const Key('chatSendButton'),
+            icon: const Icon(Icons.send),
+            iconSize: composerActionIconSize,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(
+              width: composerActionSize,
+              height: composerActionSize,
+            ),
+            visualDensity: composerActionDensity,
+            style: IconButton.styleFrom(
+              backgroundColor: colors.surfaceContainerHigh,
+              foregroundColor: colors.primary,
+            ),
+            tooltip: 'Send',
+            onPressed: _send,
+          ),
+        ),
+      );
+    }
+    if (voiceReady) {
+      return KeyedSubtree(
+        key: const ValueKey<String>('mic'),
+        child: Center(
+          child: SttMicButton(isListening: false, onPressed: _toggleMic),
+        ),
+      );
+    }
+    return null;
   }
 
   Widget _sttStatus(BuildContext context) {

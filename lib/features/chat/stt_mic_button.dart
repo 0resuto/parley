@@ -6,6 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'stt_controller.dart';
 
+/// Size of the circular mic and composer action buttons.
+const double composerActionSize = 44;
+
+/// Icon size used by the mic and composer action buttons.
+const double composerActionIconSize = 24;
+
+/// Visual density that keeps the 44 px actions above the tap-target floor.
+const VisualDensity composerActionDensity = VisualDensity(
+  horizontal: -1,
+  vertical: -1,
+);
+
 /// Microphone button that follows the live input level while listening.
 ///
 /// The level is applied directly, without smoothing, and a gentle cyclic pulse
@@ -106,10 +118,13 @@ class _SttMicButtonState extends ConsumerState<SttMicButton>
       child: IconButton(
         key: const Key('chatMicButton'),
         icon: Icon(widget.isListening ? Icons.mic : Icons.mic_none),
-        iconSize: 22,
+        iconSize: composerActionIconSize,
         padding: EdgeInsets.zero,
-        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(
+          width: composerActionSize,
+          height: composerActionSize,
+        ),
+        visualDensity: composerActionDensity,
         style: widget.isListening
             ? IconButton.styleFrom(
                 backgroundColor: colors.onSurface,

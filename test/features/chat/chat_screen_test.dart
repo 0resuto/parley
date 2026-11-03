@@ -9,6 +9,7 @@ import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/chat/chat_screen.dart';
 import 'package:parley/features/chat/chat_session_store.dart';
+import 'package:parley/features/chat/stt_mic_button.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
@@ -286,6 +287,7 @@ void main() {
       expect(find.byKey(const Key('chatInput')), findsOneWidget);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hello chat');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pumpAndSettle();
 
@@ -365,6 +367,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hello');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pumpAndSettle();
 
@@ -383,6 +386,7 @@ void main() {
       await pumpChat(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hello');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       // Wait until streaming starts.
@@ -405,7 +409,8 @@ void main() {
       await tester.tap(find.byKey(const Key('chatStopButton')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsNothing);
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
       expect(find.text('par'), findsWidgets);
       // Close with real async: cancelling the stopped subscription needs
       // real async and would hang under FakeAsync.
@@ -420,6 +425,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'first');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       for (int i = 0; i < 20; i++) {
@@ -454,6 +460,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'first');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       for (int i = 0; i < 20; i++) {
@@ -586,6 +593,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hi');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       for (int i = 0; i < 20; i++) {
@@ -623,6 +631,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hi');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       for (int i = 0; i < 20; i++) {
@@ -676,6 +685,7 @@ void main() {
       await pumpChatNoHook(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hi');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pump();
       for (int i = 0; i < 20; i++) {
@@ -771,6 +781,7 @@ void main() {
       await pumpChat(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hi');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pumpAndSettle();
 
@@ -797,6 +808,7 @@ void main() {
         find.byKey(const Key('chatInput')),
         'hello offline',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pumpAndSettle();
 
@@ -813,6 +825,7 @@ void main() {
       await pumpChat(tester);
 
       await tester.enterText(find.byKey(const Key('chatInput')), 'hello');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('chatSendButton')));
       await tester.pumpAndSettle();
 
@@ -888,6 +901,23 @@ void main() {
       expect(find.text('Something went wrong.'), findsNothing);
       expect(find.text('No messages yet. Say hello!'), findsOneWidget);
     });
+
+    testWidgets('composer floats over the chat list', (
+      WidgetTester tester,
+    ) async {
+      final Conversation conversation = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: ChatRole.user,
+        content: 'hello',
+      );
+      await pumpChatNoHook(tester);
+
+      final Rect list = tester.getRect(find.byKey(const Key('chatList')));
+      final Rect input = tester.getRect(find.byKey(const Key('chatInput')));
+      // The list reaches below the field: chat content can scroll behind it.
+      expect(list.bottom, greaterThan(input.bottom));
+    });
   });
 
   group('ChatScreen voice input (22.1)', () {
@@ -919,6 +949,8 @@ void main() {
 
       stt.emitFinal('hello world');
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump();
       expect(inputText(tester), 'hello world');
       expect(find.byKey(const Key('chatMicBusy')), findsOneWidget);
       expect(find.byKey(const Key('chatMicButton')), findsNothing);
@@ -927,7 +959,10 @@ void main() {
 
       stt.emitStopped();
       await tester.pump();
-      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump();
+      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
       expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
     });
 
@@ -938,11 +973,54 @@ void main() {
       await pumpChatNoHook(tester);
 
       expect(find.byKey(const Key('chatMicButton')), findsNothing);
+      expect(find.byKey(const Key('chatSendButton')), findsNothing);
+      expect(find.byKey(const Key('chatTrailingAction')), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('chatInput')), 'hello');
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
 
       models.setReady(true);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('chatInput')), '');
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsNothing);
+    });
+
+    testWidgets('send matches the mic footprint', (WidgetTester tester) async {
+      await pumpChatNoHook(tester);
+      final Size mic = tester.getSize(find.byKey(const Key('chatMicButton')));
+      expect(mic, const Size(composerActionSize, composerActionSize));
+
+      await tester.enterText(find.byKey(const Key('chatInput')), 'hello');
+      await tester.pumpAndSettle();
+      final Size send = tester.getSize(find.byKey(const Key('chatSendButton')));
+      expect(send, mic);
+    });
+
+    testWidgets('typing swaps the mic for send and clearing swaps it back', (
+      WidgetTester tester,
+    ) async {
+      await pumpChatNoHook(tester);
+      expect(find.byKey(const Key('chatTrailingAction')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('chatInput')), 'I said');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatTrailingAction')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('chatInput')), '');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chatTrailingAction')), findsOneWidget);
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsNothing);
     });
 
     testWidgets('shows processing while the engine is starting', (
@@ -1029,23 +1107,6 @@ void main() {
       final double low = samples.reduce((double a, double b) => a < b ? a : b);
       final double high = samples.reduce((double a, double b) => a > b ? a : b);
       expect(high - low, greaterThan(0.015));
-    });
-
-    testWidgets('dictation keeps text typed before the microphone', (
-      WidgetTester tester,
-    ) async {
-      await pumpChatNoHook(tester);
-      await tester.enterText(find.byKey(const Key('chatInput')), 'I said');
-
-      await tester.tap(find.byKey(const Key('chatMicButton')));
-      await tester.pump();
-      stt.emitPartial('hello');
-      await tester.pump();
-      expect(inputText(tester), 'I said hello');
-
-      stt.emitFinal('hello world');
-      await tester.pump();
-      expect(inputText(tester), 'I said hello world');
     });
 
     testWidgets('auto-send sends the final text once', (
