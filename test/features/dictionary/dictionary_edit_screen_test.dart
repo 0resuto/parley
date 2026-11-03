@@ -109,6 +109,12 @@ void main() {
       final Rect field = tester.getRect(find.byType(TextField));
       expect(field.left, greaterThanOrEqualTo(16));
       expect(field.right, lessThanOrEqualTo(784));
+      final Finder safeArea = find.ancestor(
+        of: find.byType(ListView),
+        matching: find.byType(SafeArea),
+      );
+      expect(safeArea, findsOneWidget);
+      expect(tester.widget<SafeArea>(safeArea).top, isFalse);
     });
 
     testWidgets('add creates a unit and closes the screen', (
@@ -162,6 +168,13 @@ void main() {
       );
       await pumpHarness(tester, unitId: created.id);
       expect(find.text('Edit word'), findsOneWidget);
+
+      final Finder safeArea = find.ancestor(
+        of: find.byType(ListView),
+        matching: find.byType(SafeArea),
+      );
+      expect(safeArea, findsOneWidget);
+      expect(tester.widget<SafeArea>(safeArea).top, isFalse);
 
       // Existing values are shown, with dates and the description.
       expect(

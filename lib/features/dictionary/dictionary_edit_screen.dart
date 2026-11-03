@@ -101,17 +101,20 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add word')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _UnitFormBody(
-            textController: _textController,
-            textError: _textError,
-            formError: _formError,
-            saving: _saving,
-            onSave: _save,
-          ),
-        ],
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _UnitFormBody(
+              textController: _textController,
+              textError: _textError,
+              formError: _formError,
+              saving: _saving,
+              onSave: _save,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -308,15 +311,18 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: const LoadingStateView(),
+        body: const SafeArea(top: false, child: LoadingStateView()),
       );
     }
     if (_loadFailed) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: ErrorStateView(
-          onRetry: _load,
-          retryKey: const Key('dictionaryEditRetry'),
+        body: SafeArea(
+          top: false,
+          child: ErrorStateView(
+            onRetry: _load,
+            retryKey: const Key('dictionaryEditRetry'),
+          ),
         ),
       );
     }
@@ -324,51 +330,57 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
     if (_notFound || unit == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: const EmptyStateView(
-          icon: Icons.search_off,
-          title: 'Word not found.',
-          message: 'It may have been deleted.',
+        body: const SafeArea(
+          top: false,
+          child: EmptyStateView(
+            icon: Icons.search_off,
+            title: 'Word not found.',
+            message: 'It may have been deleted.',
+          ),
         ),
       );
     }
     return Scaffold(
       appBar: AppBar(title: const Text('Edit word')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _UnitFormBody(
-            textController: _textController,
-            textError: _textError,
-            formError: _formError,
-            saving: _saving,
-            onSave: _save,
-          ),
-          const Divider(height: 32),
-          Text('Added: ${_formatDate(unit.createdAt)}'),
-          const SizedBox(height: 8),
-          Text('Last review: ${_formatNullableDate(unit.lastReview)}'),
-          const SizedBox(height: 8),
-          Text('Due: ${_formatDate(unit.due)}'),
-          if (unit.description != null && unit.description!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(unit.description!),
-          ],
-          const SizedBox(height: 8),
-          SwitchListTile(
-            title: const Text('I already know this'),
-            value: unit.knownManual,
-            onChanged: _busy ? null : _toggleKnown,
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              onPressed: _confirmDelete,
-              icon: const Icon(Icons.delete),
-              label: const Text('Delete word'),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _UnitFormBody(
+              textController: _textController,
+              textError: _textError,
+              formError: _formError,
+              saving: _saving,
+              onSave: _save,
             ),
-          ),
-        ],
+            const Divider(height: 32),
+            Text('Added: ${_formatDate(unit.createdAt)}'),
+            const SizedBox(height: 8),
+            Text('Last review: ${_formatNullableDate(unit.lastReview)}'),
+            const SizedBox(height: 8),
+            Text('Due: ${_formatDate(unit.due)}'),
+            if (unit.description != null && unit.description!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(unit.description!),
+            ],
+            const SizedBox(height: 8),
+            SwitchListTile(
+              title: const Text('I already know this'),
+              value: unit.knownManual,
+              onChanged: _busy ? null : _toggleKnown,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _confirmDelete,
+                icon: const Icon(Icons.delete),
+                label: const Text('Delete word'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

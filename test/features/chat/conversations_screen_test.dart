@@ -140,6 +140,20 @@ void main() {
   }
 
   group('ConversationsScreen 6.7', () {
+    testWidgets('history list keeps the bottom safe area', (
+      WidgetTester tester,
+    ) async {
+      await chats.createConversation(title: 'First chat');
+      await pumpHistory(tester);
+
+      final Finder safeArea = find.ancestor(
+        of: find.byType(ListView),
+        matching: find.byType(SafeArea),
+      );
+      expect(safeArea, findsOneWidget);
+      expect(tester.widget<SafeArea>(safeArea).top, isFalse);
+    });
+
     testWidgets('tap opens the conversation in chat', (
       WidgetTester tester,
     ) async {

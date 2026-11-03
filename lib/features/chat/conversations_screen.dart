@@ -163,7 +163,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: SafeArea(top: false, child: _buildBody()),
     );
   }
 

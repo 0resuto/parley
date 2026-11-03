@@ -186,97 +186,103 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
     final int limit = ref.watch(documentStoreProvider).limitFor(widget.kind);
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
-      body: _loading
-          ? const LoadingStateView()
-          : _loadFailed
-          ? ErrorStateView(onRetry: _load)
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_editing) ...[
-                  TextField(
-                    key: const Key('documentEditField'),
-                    controller: _editController,
-                    minLines: 8,
-                    maxLines: 12,
-                  ),
-                  const SizedBox(height: 8),
-                  _Counter(used: _editController.text.length, limit: limit),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: FilledButton(
-                            key: const Key('documentSaveButton'),
-                            onPressed:
-                                _editController.text.length > limit || _saving
-                                ? null
-                                : _save,
-                            child: _saving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Save'),
+      body: SafeArea(
+        top: false,
+        child: _loading
+            ? const LoadingStateView()
+            : _loadFailed
+            ? ErrorStateView(onRetry: _load)
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_editing) ...[
+                    TextField(
+                      key: const Key('documentEditField'),
+                      controller: _editController,
+                      minLines: 8,
+                      maxLines: 12,
+                    ),
+                    const SizedBox(height: 8),
+                    _Counter(used: _editController.text.length, limit: limit),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: FilledButton(
+                              key: const Key('documentSaveButton'),
+                              onPressed:
+                                  _editController.text.length > limit || _saving
+                                  ? null
+                                  : _save,
+                              child: _saving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Save'),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: OutlinedButton(
-                            onPressed: _saving ? null : _cancelEdit,
-                            child: const Text('Cancel'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: _saving ? null : _cancelEdit,
+                              child: const Text('Cancel'),
+                            ),
                           ),
                         ),
+                      ],
+                    ),
+                  ] else ...[
+                    if (_text.isEmpty)
+                      const Text('No content yet.')
+                    else
+                      Text(_text, key: const Key('documentViewText')),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        key: const Key('documentEditButton'),
+                        onPressed: _startEdit,
+                        child: const Text('Edit'),
                       ),
-                    ],
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Text(
+                    'History',
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
-                ] else ...[
-                  if (_text.isEmpty)
-                    const Text('No content yet.')
+                  const SizedBox(height: 8),
+                  if (_versions.isEmpty)
+                    const Text('No previous versions.')
                   else
-                    Text(_text, key: const Key('documentViewText')),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 48,
-                    child: OutlinedButton(
-                      key: const Key('documentEditButton'),
-                      onPressed: _startEdit,
-                      child: const Text('Edit'),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Text('History', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                if (_versions.isEmpty)
-                  const Text('No previous versions.')
-                else
-                  ..._versions.map(
-                    (DocumentVersion version) => Card(
-                      child: ListTile(
-                        title: Text(_formatDate(version.createdAt)),
-                        subtitle: version.preview.isEmpty
-                            ? const Text('(empty)')
-                            : Text(version.preview),
-                        trailing: TextButton(
-                          onPressed: _restoring
-                              ? null
-                              : () => _restore(version.id),
-                          child: const Text('Restore'),
+                    ..._versions.map(
+                      (DocumentVersion version) => Card(
+                        child: ListTile(
+                          title: Text(_formatDate(version.createdAt)),
+                          subtitle: version.preview.isEmpty
+                              ? const Text('(empty)')
+                              : Text(version.preview),
+                          trailing: TextButton(
+                            onPressed: _restoring
+                                ? null
+                                : () => _restore(version.id),
+                            child: const Text('Restore'),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 }

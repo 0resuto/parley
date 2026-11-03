@@ -60,6 +60,12 @@ void main() {
       expect(find.byKey(const Key('documentEditButton')), findsOneWidget);
       expect(find.text('History'), findsOneWidget);
       expect(find.text('No previous versions.'), findsOneWidget);
+      final Finder safeArea = find.ancestor(
+        of: find.byType(ListView),
+        matching: find.byType(SafeArea),
+      );
+      expect(safeArea, findsOneWidget);
+      expect(tester.widget<SafeArea>(safeArea).top, isFalse);
     });
 
     testWidgets('notes screen uses notes title and limit', (
