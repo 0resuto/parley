@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/services/settings/settings_repository.dart';
 import 'settings_providers.dart';
+import 'settings_section.dart';
 
 /// Translation settings (SPEC 5.10): the AI in-sentence meaning switch
 /// and the meaning language.
@@ -89,7 +90,7 @@ class _TranslationSectionState extends ConsumerState<TranslationSection> {
         SwitchListTile(
           key: const Key('contextTranslationSwitch'),
           title: const Text('In-sentence translation (AI)'),
-          subtitle: const Text(
+          subtitle: const SettingsDescription(
             'Ask the AI how the word is meant in the sentence '
             '(uses extra tokens).',
           ),
@@ -104,7 +105,7 @@ class _TranslationSectionState extends ConsumerState<TranslationSection> {
         ListTile(
           key: const Key('meaningLanguageTile'),
           title: const Text('Meaning language'),
-          subtitle: const Text(
+          subtitle: const SettingsDescription(
             'Language the AI translates meanings into '
             '(the bundled dictionary is English-Russian).',
           ),

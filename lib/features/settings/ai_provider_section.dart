@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:parley/core/failures.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'settings_providers.dart';
+import 'settings_section.dart';
 
 /// AI provider settings (SPEC 5.10).
 ///
@@ -259,9 +260,8 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Text(
+          child: const SettingsDescription(
             'Only OpenAI-format models are supported.',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
         Padding(

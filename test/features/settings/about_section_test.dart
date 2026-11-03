@@ -28,5 +28,10 @@ void main() {
     );
 
     expect(find.text('Version ${AboutSection.appVersion}'), findsOneWidget);
+    final Text version = tester.widget<Text>(
+      find.text('Version ${AboutSection.appVersion}'),
+    );
+    expect(version.style?.fontSize, 12);
+    expect(version.style?.color?.a, closeTo(0.8, 0.01));
   });
 }

@@ -6,6 +6,7 @@ import 'package:parley/services/stt/stt_model.dart';
 import 'package:parley/services/stt/stt_model_manager.dart';
 import 'stt_engine_controller.dart';
 import 'stt_models_controller.dart';
+import 'settings_section.dart';
 
 /// Offline speech-model downloads (SPEC 5.10).
 class SttModelsSection extends ConsumerWidget {
@@ -185,9 +186,8 @@ class _ModelCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      SettingsDescription(
                         '${model.sizeLabel} · ${model.description}',
-                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                       if (status.phase == SttModelPhase.ready)
                         Text(

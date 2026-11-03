@@ -23,3 +23,24 @@ class SettingsSection extends StatelessWidget {
     );
   }
 }
+
+/// Muted supporting text used for Settings item descriptions.
+///
+/// Follows the AndroidX preference pattern: a smaller text appearance than the
+/// title, painted with the secondary text color.
+class SettingsDescription extends StatelessWidget {
+  const SettingsDescription(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Text(
+      text,
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+      ),
+    );
+  }
+}

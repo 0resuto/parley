@@ -298,19 +298,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ListTile(
                     leading: const Icon(Icons.upload),
                     title: const Text('Export JSON'),
-                    subtitle: const Text('Share a backup of your dictionary'),
+                    subtitle: const SettingsDescription(
+                      'Share a backup of your dictionary',
+                    ),
                     onTap: _busy ? null : _export,
                   ),
                   ListTile(
                     leading: const Icon(Icons.download),
                     title: const Text('Import JSON'),
-                    subtitle: const Text('Restore from a backup file'),
+                    subtitle: const SettingsDescription(
+                      'Restore from a backup file',
+                    ),
                     onTap: _busy ? null : _import,
                   ),
                   ListTile(
                     leading: const Icon(Icons.table_chart),
                     title: const Text('Import CSV'),
-                    subtitle: const Text('Add words from a CSV file'),
+                    subtitle: const SettingsDescription(
+                      'Add words from a CSV file',
+                    ),
                     onTap: _busy ? null : _importCsv,
                   ),
                 ],

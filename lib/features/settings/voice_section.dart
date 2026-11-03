@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_providers.dart';
+import 'settings_section.dart';
 import 'stt_engine_section.dart';
 import 'stt_models_section.dart';
 
@@ -75,7 +76,7 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
         SwitchListTile(
           key: const Key('sttAutoSendSwitch'),
           title: const Text('Send after recognition'),
-          subtitle: const Text(
+          subtitle: const SettingsDescription(
             'Send the recognized message immediately instead of inserting it.',
           ),
           value: _autoSend,

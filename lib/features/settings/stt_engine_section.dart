@@ -6,6 +6,7 @@ import 'package:parley/services/stt/stt_model.dart';
 import 'package:parley/services/stt/stt_model_manager.dart';
 import 'stt_engine_controller.dart';
 import 'stt_models_controller.dart';
+import 'settings_section.dart';
 
 /// Recognition-engine picker (SPEC 5.10).
 class SttEngineSection extends ConsumerWidget {
@@ -74,7 +75,7 @@ class _EngineTile extends StatelessWidget {
       key: Key('sttEngine_${engine.id}'),
       leading: Icon(Icons.offline_bolt),
       title: Text(title),
-      subtitle: Text(subtitle),
+      subtitle: SettingsDescription(subtitle),
       selected: selected,
       enabled: enabled,
       trailing: selected

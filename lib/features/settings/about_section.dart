@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'settings_section.dart';
+
 /// About section (SPEC 5.10): app version.
 ///
 /// Version matches `pubspec.yaml` (0.3.0). No `package_info` dependency
@@ -22,17 +24,19 @@ class AboutSection extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.info_outline),
           title: Text('Parley'),
-          subtitle: Text('Version $appVersion'),
+          subtitle: SettingsDescription('Version $appVersion'),
         ),
         const ListTile(
           leading: Icon(Icons.menu_book_outlined),
           title: Text('Dictionary data'),
-          subtitle: Text('Wiktionary via kaikki.org (CC BY-SA)'),
+          subtitle: SettingsDescription('Wiktionary via kaikki.org (CC BY-SA)'),
         ),
         const ListTile(
           leading: Icon(Icons.record_voice_over_outlined),
           title: Text('Offline speech models'),
-          subtitle: Text('Moonshine and Whisper via sherpa-onnx (MIT)'),
+          subtitle: SettingsDescription(
+            'Moonshine and Whisper via sherpa-onnx (MIT)',
+          ),
         ),
       ],
     );

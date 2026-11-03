@@ -8,6 +8,7 @@ import 'package:parley/services/dictionary/dictionary_importer.dart';
 import 'package:parley/services/dictionary/dictionary_initializer.dart';
 import 'package:parley/services/dictionary/import/import_worker.dart';
 import 'settings_providers.dart';
+import 'settings_section.dart';
 
 /// Settings -> Dictionaries (SPEC 5.12).
 ///
@@ -319,7 +320,7 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
         ListTile(
           key: const Key('bundledDictionaryTile'),
           title: const Text('Bundled English-Russian'),
-          subtitle: Text(
+          subtitle: SettingsDescription(
             'Built-in · '
             '${NumberFormat.decimalPattern().format(bundledDictionaryWordCount)}'
             ' words',
@@ -329,7 +330,7 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
           key: const Key('importDictionaryTile'),
           leading: const Icon(Icons.library_add),
           title: const Text('Import dictionary'),
-          subtitle: const Text(
+          subtitle: const SettingsDescription(
             'Select the .ifo or .dsl files of one dictionary '
             '(or a single .zip archive with them).',
           ),
@@ -384,11 +385,10 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(dictionary.name, overflow: TextOverflow.ellipsis),
-                Text(
+                SettingsDescription(
                   '${dictionary.targetLang} · '
                   '${NumberFormat.decimalPattern().format(dictionary.wordCount)}'
                   ' words',
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),

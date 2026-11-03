@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_providers.dart';
+import 'settings_section.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'document_screen.dart';
 
@@ -59,13 +60,13 @@ class _TutorSectionState extends ConsumerState<TutorSection> {
         ListTile(
           leading: const Icon(Icons.rule),
           title: const Text('Rules'),
-          subtitle: const Text('View and edit tutor rules'),
+          subtitle: const SettingsDescription('View and edit tutor rules'),
           onTap: () => _openDocument(DocumentKind.rules),
         ),
         ListTile(
           leading: const Icon(Icons.note),
           title: const Text('Notes'),
-          subtitle: const Text('View and edit tutor notes'),
+          subtitle: const SettingsDescription('View and edit tutor notes'),
           onTap: () => _openDocument(DocumentKind.notes),
         ),
       ],
