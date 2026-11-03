@@ -1048,22 +1048,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           _sttStatus(context),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: sttState.isListening
-                          ? colors.outline
-                          : colors.outlineVariant,
-                      width: sttState.isListening ? 1.5 : 1,
-                    ),
-                  ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: sttState.isListening
+                    ? colors.outline
+                    : colors.outlineVariant,
+                width: sttState.isListening ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
                   child: TextField(
                     key: const Key('chatInput'),
                     controller: _input,
@@ -1073,58 +1073,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     decoration: const InputDecoration(
                       hintText: 'Type a message',
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
+                      contentPadding: EdgeInsets.fromLTRB(16, 14, 6, 14),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              if (sttState.isProcessing)
-                const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox(
-                    key: Key('chatMicBusy'),
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                SttMicButton(
-                  isListening: sttState.isListening,
-                  onPressed: _toggleMic,
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: sttState.isProcessing
+                      ? const Center(
+                          child: SizedBox(
+                            key: Key('chatMicBusy'),
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : Center(
+                          child: SttMicButton(
+                            isListening: sttState.isListening,
+                            onPressed: _toggleMic,
+                          ),
+                        ),
                 ),
-              const SizedBox(width: 8),
-              if (state.isStreaming)
-                IconButton(
-                  key: const Key('chatStopButton'),
-                  icon: const Icon(Icons.stop),
-                  style: IconButton.styleFrom(
-                    backgroundColor: colors.secondaryContainer,
-                    foregroundColor: colors.onSecondaryContainer,
-                  ),
-                  tooltip: 'Stop',
-                  onPressed: _stop,
-                )
-              else
-                IconButton(
-                  key: const Key('chatSendButton'),
-                  icon: const Icon(Icons.send),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _canSend
-                        ? colors.primary
-                        : colors.surfaceContainerHighest,
-                    foregroundColor: _canSend
-                        ? colors.onPrimary
-                        : colors.onSurfaceVariant,
-                  ),
-                  tooltip: 'Send',
-                  onPressed: _send,
+                Padding(
+                  padding: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
+                  child: state.isStreaming
+                      ? IconButton(
+                          key: const Key('chatStopButton'),
+                          icon: const Icon(Icons.stop),
+                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            backgroundColor: colors.secondaryContainer,
+                            foregroundColor: colors.onSecondaryContainer,
+                          ),
+                          tooltip: 'Stop',
+                          onPressed: _stop,
+                        )
+                      : IconButton(
+                          key: const Key('chatSendButton'),
+                          icon: const Icon(Icons.send),
+                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            backgroundColor: _canSend
+                                ? colors.primary
+                                : colors.surfaceContainerHighest,
+                            foregroundColor: _canSend
+                                ? colors.onPrimary
+                                : colors.onSurfaceVariant,
+                          ),
+                          tooltip: 'Send',
+                          onPressed: _send,
+                        ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

@@ -106,6 +106,10 @@ class _SttMicButtonState extends ConsumerState<SttMicButton>
       child: IconButton(
         key: const Key('chatMicButton'),
         icon: Icon(widget.isListening ? Icons.mic : Icons.mic_none),
+        iconSize: 22,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        visualDensity: VisualDensity.compact,
         style: widget.isListening
             ? IconButton.styleFrom(
                 backgroundColor: colors.onSurface,
