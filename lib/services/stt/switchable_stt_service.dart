@@ -30,13 +30,51 @@ class SwitchableSttService implements SttService {
 
   SttService? _active;
   StreamSubscription<SttEvent>? _subscription;
+  Future<bool>? _initializing;
   bool _disposed = false;
 
   @override
   Stream<SttEvent> get events => _events.stream;
 
   @override
-  Future<bool> initialize() async => !_disposed;
+  Future<bool> initialize() {
+    if (_disposed) {
+      return Future<bool>.value(false);
+    }
+    return _initializing ??= _prepare().whenComplete(() {
+      _initializing = null;
+    });
+  }
+
+  /// Loads the selected model without opening the microphone.
+  Future<bool> _prepare() async {
+    final SttEngineKind engine = _settings.engine;
+    Directory? directory;
+    try {
+      directory = await _modelDirectory(engine);
+    } catch (_) {
+      return true;
+    }
+    if (directory == null) {
+      // Let start() report the model-specific missing failure.
+      return true;
+    }
+    SttService? local = _local[engine];
+    if (local == null) {
+      try {
+        local = await _localFactory(engine, directory);
+        _local[engine] = local;
+      } catch (_) {
+        return true;
+      }
+    }
+    final bool ready = await local.initialize();
+    if (!ready || _disposed || _settings.engine != engine) {
+      return true;
+    }
+    await _activate(local, engine);
+    return true;
+  }
 
   @override
   Future<void> start() async {

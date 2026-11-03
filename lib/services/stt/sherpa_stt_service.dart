@@ -16,7 +16,7 @@ export 'pcm_level.dart' show pcm16Level;
 const int sttSampleRate = 16000;
 
 final RegExp _nonSpeechTag = RegExp(
-  r'\[(?:sound|blank_audio|music|noise|silence|inaudible|laughter|applause)\]',
+  r'\[\s*(?:sound|blank[ _]audio|no[ _]speech|music|noise|silence|inaudible|laughter|applause)\s*\]',
   caseSensitive: false,
 );
 
@@ -102,9 +102,10 @@ Float32List pcm16ToFloat32(Uint8List bytes) {
 
 /// Offline recognition through sherpa-onnx (SPEC 5.8).
 ///
-/// The model is loaded on the first start and kept in memory. Recording is
-/// buffered in PCM16 and decoded once when the user stops, so the UI can show
-/// a processing indicator instead of partial text.
+/// The model is loaded by [initialize] (called ahead of time when possible) or
+/// lazily on the first start, then kept in memory. Recording is buffered in
+/// PCM16 and decoded once when the user stops, so the UI can show a processing
+/// indicator instead of partial text.
 class SherpaSttService implements SttService {
   SherpaSttService({
     required this.engine,
@@ -134,9 +135,10 @@ class SherpaSttService implements SttService {
 
   @override
   Future<bool> initialize() async {
-    // The model is loaded lazily on the first start; keep the controller
-    // alive so it can show a model-loading failure instead of a generic one.
-    return !_disposed;
+    if (_disposed) {
+      return false;
+    }
+    return _ensureRecognizer();
   }
 
   @override

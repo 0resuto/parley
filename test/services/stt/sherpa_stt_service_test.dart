@@ -145,6 +145,8 @@ void main() {
     expect(cleanOfflineTranscript('[SOUND] [SOUND] [BLANK_AUDIO]'), isEmpty);
     expect(cleanOfflineTranscript('[SOUND] Hello world'), 'Hello world');
     expect(cleanOfflineTranscript('  [MUSIC]  '), isEmpty);
+    expect(cleanOfflineTranscript('[ Silence ]'), isEmpty);
+    expect(cleanOfflineTranscript('[ Blank Audio ]'), isEmpty);
   });
 
   test('computes a dB-scaled level from PCM16', () {
@@ -196,6 +198,26 @@ void main() {
       events.whereType<SttFailed>().single.failure,
       isA<SttPermissionFailure>(),
     );
+    expect(recorder.started, isFalse);
+  });
+
+  test('initialize loads the model without opening the microphone', () async {
+    expect(await service.initialize(), isTrue);
+    await flush();
+
+    expect(recognizer.initialized, isTrue);
+    expect(recorder.started, isFalse);
+
+    await service.start();
+    await flush();
+    expect(events.whereType<SttStarted>(), hasLength(1));
+    expect(recognizer.initialized, isTrue);
+  });
+
+  test('initialize reports a model load failure', () async {
+    factory.fail = true;
+
+    expect(await service.initialize(), isFalse);
     expect(recorder.started, isFalse);
   });
 

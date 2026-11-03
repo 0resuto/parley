@@ -13,9 +13,11 @@ import 'package:parley/features/settings/stt_models_controller.dart';
 import 'package:parley/features/shell/shell_screen.dart';
 import 'package:parley/services/stt/stt_engine.dart';
 import 'package:parley/services/stt/stt_model_manager.dart';
+import 'package:parley/services/stt/stt_providers.dart';
 
 import 'helpers/fake_chat_repository.dart';
 import 'helpers/fake_clock.dart';
+import 'helpers/fake_stt_service.dart';
 import 'helpers/fake_unit_repository.dart';
 
 class ReadyModelsController extends SttModelsController {
@@ -69,6 +71,7 @@ void main() {
           sttModelsControllerProvider.overrideWith(
             () => ReadyModelsController(),
           ),
+          sttServiceProvider.overrideWithValue(FakeSttService()),
         ],
         child: const ParleyApp(),
       ),

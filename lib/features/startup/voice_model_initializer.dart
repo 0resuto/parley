@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/features/settings/stt_models_controller.dart';
+import 'stt_warmup.dart';
 
 /// Starts the mandatory voice-model download in the background.
 ///
@@ -35,6 +36,8 @@ class _VoiceModelInitializerState extends ConsumerState<VoiceModelInitializer> {
     // Keep the controller (and its download) alive for the whole app session
     // without rebuilding the tree on every progress tick.
     ref.watch(sttModelsControllerProvider.notifier);
+    // Load the selected model as soon as it is ready.
+    ref.watch(sttWarmupProvider);
     return widget.child;
   }
 }

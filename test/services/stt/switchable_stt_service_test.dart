@@ -85,6 +85,43 @@ void main() {
 
   Future<void> flush() => Future<void>.delayed(Duration.zero);
 
+  test('initialize preloads the selected engine without recording', () async {
+    final SwitchableSttService router = build();
+
+    expect(await router.initialize(), isTrue);
+    await flush();
+    expect(local.calls, ['initialize']);
+    expect(events, isEmpty);
+
+    await router.start();
+    await flush();
+    expect(local.calls, ['initialize', 'start']);
+    expect(events.whereType<SttStarted>(), hasLength(1));
+  });
+
+  test('initialize is idempotent while the model is loading', () async {
+    final SwitchableSttService router = build();
+
+    await Future.wait(<Future<bool>>[router.initialize(), router.initialize()]);
+    await flush();
+
+    expect(
+      local.calls.where((String call) => call == 'initialize'),
+      hasLength(1),
+    );
+  });
+
+  test('initialize skips a missing offline model', () async {
+    await settings.setEngine(SttEngineKind.moonshine);
+    final SwitchableSttService router = build(
+      modelDirectory: (SttEngineKind _) async => null,
+    );
+
+    expect(await router.initialize(), isTrue);
+    await flush();
+    expect(local.calls, isEmpty);
+  });
+
   test('uses the selected local engine', () async {
     await build().start();
     await flush();
