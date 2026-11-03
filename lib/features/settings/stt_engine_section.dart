@@ -25,15 +25,6 @@ class SttEngineSection extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
-        _EngineTile(
-          engine: SttEngineKind.system,
-          title: 'System (Android)',
-          subtitle: 'Uses the phone\'s speech service.',
-          selected: selected == SttEngineKind.system,
-          enabled: true,
-          onTap: () =>
-              ref.read(sttEngineProvider.notifier).select(SttEngineKind.system),
-        ),
         for (final SttModel model in sttModels)
           _EngineTile(
             engine: model.engine,
@@ -81,11 +72,7 @@ class _EngineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       key: Key('sttEngine_${engine.id}'),
-      leading: Icon(
-        engine == SttEngineKind.system
-            ? Icons.phone_android
-            : Icons.offline_bolt,
-      ),
+      leading: Icon(Icons.offline_bolt),
       title: Text(title),
       subtitle: Text(subtitle),
       selected: selected,

@@ -9,11 +9,30 @@ import 'package:parley/data/db/database.dart' hide Conversation;
 import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
+import 'package:parley/features/settings/stt_models_controller.dart';
 import 'package:parley/features/shell/shell_screen.dart';
+import 'package:parley/services/stt/stt_engine.dart';
+import 'package:parley/services/stt/stt_model_manager.dart';
 
 import 'helpers/fake_chat_repository.dart';
 import 'helpers/fake_clock.dart';
 import 'helpers/fake_unit_repository.dart';
+
+class ReadyModelsController extends SttModelsController {
+  @override
+  SttModelsState build() {
+    return const SttModelsState(<SttEngineKind, SttModelStatus>{
+      SttEngineKind.moonshine: SttModelStatus(),
+      SttEngineKind.whisper: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
+    });
+  }
+
+  @override
+  Future<void> ensureRequired() async {}
+}
 
 void main() {
   late AppDatabase db;
@@ -47,6 +66,9 @@ void main() {
           unitRepositoryProvider.overrideWithValue(repo),
           clockProvider.overrideWithValue(clock),
           chatRepositoryProvider.overrideWithValue(chats),
+          sttModelsControllerProvider.overrideWith(
+            () => ReadyModelsController(),
+          ),
         ],
         child: const ParleyApp(),
       ),

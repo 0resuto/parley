@@ -89,9 +89,10 @@ flowchart LR
   the target words, and a notes updater rewrites `notes.md` (best-effort,
   offline-aware).
 - **Voice** — assistant replies can be played with `flutter_tts` (en-US), with an
-  auto-play option; messages can be dictated with the Android speech recognizer
-  (en-US) or a downloaded offline model (Moonshine Tiny or Whisper Tiny.en),
-  with a live light-gray spectrum and optional insert-or-send behavior.
+  auto-play option; messages can be dictated offline with Whisper Tiny.en (downloaded
+  automatically in the background on first launch; the mic appears when ready) or
+  Moonshine Tiny (optional download), with a live light-gray spectrum and
+  insert-or-send behavior.
 - **Data** — JSON export/import (merge by word) and CSV import (`word;translation`).
 
 ## Requirements
@@ -121,9 +122,9 @@ actions show a clear message when there is no connection.
 - **Tutor** — new-word density (0–30 %) and editors for `rules.md` (max 6000
   chars) and `notes.md` (max 8000 chars) with version history.
 - **Voice** — auto-play replies, speech speed (0.5–1.5×), and voice input:
-  insert or send after recognition, on-device recognition preference, and
-  optional offline models (Moonshine Tiny or Whisper Tiny.en) downloaded from
-  Settings with a size confirmation, progress and cancel.
+  insert or send after recognition, Whisper Tiny.en downloaded in the background on
+  first launch and selected by default, and an optional Moonshine Tiny download with
+  a size confirmation, progress and cancel.
 - **Data** — JSON export/import and CSV import.
 
 ## Project layout
@@ -181,6 +182,6 @@ live in GitHub Releases.
 The app code is MIT — see [LICENSE](LICENSE). The bundled English–Russian
 dictionary data (`assets/dictionary/`, built by `tool/build_dictionary.py`
 from the [kaikki.org](https://kaikki.org/dictionary/English/) Wiktionary
-extract) comes from Wiktionary and is licensed CC BY-SA. The optional offline
-speech models (Moonshine and Whisper, downloaded with sherpa-onnx) are MIT
-licensed.
+extract) comes from Wiktionary and is licensed CC BY-SA. The speech models
+(Whisper Tiny.en downloaded on first launch, Moonshine Tiny optional, via
+sherpa-onnx) are MIT licensed.

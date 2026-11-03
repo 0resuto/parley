@@ -12,12 +12,14 @@ import 'package:parley/features/chat/chat_session_store.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
+import 'package:parley/features/settings/stt_models_controller.dart';
 import 'package:parley/features/chat/chat_controller.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'package:parley/services/llm/llm_client.dart';
 import 'package:parley/services/settings/settings_repository.dart';
 import 'package:parley/services/settings/stt_settings.dart';
 import 'package:parley/services/stt/stt_engine.dart';
+import 'package:parley/services/stt/stt_model_manager.dart';
 import 'package:parley/services/stt/stt_providers.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'package:parley/services/tts/tts_service.dart';
@@ -152,6 +154,37 @@ class FakeChatLlmClient implements LlmClient {
   }
 }
 
+class TestModelsController extends SttModelsController {
+  TestModelsController({this.ready = true});
+
+  static const SttModelsState _ready =
+      SttModelsState(<SttEngineKind, SttModelStatus>{
+        SttEngineKind.moonshine: SttModelStatus(phase: SttModelPhase.ready),
+        SttEngineKind.whisper: SttModelStatus(
+          phase: SttModelPhase.ready,
+          progress: 1,
+        ),
+      });
+  static const SttModelsState _empty =
+      SttModelsState(<SttEngineKind, SttModelStatus>{
+        SttEngineKind.moonshine: SttModelStatus(),
+        SttEngineKind.whisper: SttModelStatus(),
+      });
+
+  bool ready;
+
+  @override
+  SttModelsState build() => ready ? _ready : _empty;
+
+  void setReady(bool value) {
+    ready = value;
+    state = value ? _ready : _empty;
+  }
+
+  @override
+  Future<void> ensureRequired() async {}
+}
+
 void main() {
   late FakeClock clock;
   late FakeChatRepository chats;
@@ -164,6 +197,7 @@ void main() {
   late MemorySttSettings sttSettings;
   late FakeTtsService tts;
   late MemoryChatSessionStore session;
+  late TestModelsController models;
   final DateTime initial = DateTime.utc(2026, 4, 1, 12);
 
   setUp(() {
@@ -178,6 +212,7 @@ void main() {
     sttSettings = MemorySttSettings();
     tts = FakeTtsService();
     session = MemoryChatSessionStore();
+    models = TestModelsController();
   });
 
   tearDown(() async {
@@ -200,6 +235,7 @@ void main() {
           sttServiceProvider.overrideWithValue(stt),
           sttSettingsProvider.overrideWithValue(sttSettings),
           chatSessionStoreProvider.overrideWithValue(session),
+          sttModelsControllerProvider.overrideWith(() => models),
           ttsServiceProvider.overrideWithValue(tts),
         ],
         child: const MaterialApp(home: ChatScreen()),
@@ -224,6 +260,7 @@ void main() {
           sttServiceProvider.overrideWithValue(stt),
           sttSettingsProvider.overrideWithValue(sttSettings),
           chatSessionStoreProvider.overrideWithValue(session),
+          sttModelsControllerProvider.overrideWith(() => models),
           ttsServiceProvider.overrideWithValue(tts),
           chatReplyHookProvider.overrideWithValue((_) async {}),
         ],
@@ -870,7 +907,7 @@ void main() {
       await tester.pump();
 
       expect(tts.stopCalls, 1);
-      expect(stt.calls, contains('start:true'));
+      expect(stt.calls, contains('start'));
       expect(find.byKey(const Key('chatListeningIndicator')), findsOneWidget);
       expect(find.byKey(const Key('chatSpectrum')), findsOneWidget);
       stt.emitSpectrum(<double>[0.2, 0.8, 0.4]);
@@ -894,6 +931,20 @@ void main() {
       expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
     });
 
+    testWidgets('mic stays hidden until the required model is ready', (
+      WidgetTester tester,
+    ) async {
+      models.ready = false;
+      await pumpChatNoHook(tester);
+
+      expect(find.byKey(const Key('chatMicButton')), findsNothing);
+      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+
+      models.setReady(true);
+      await tester.pump();
+      expect(find.byKey(const Key('chatMicButton')), findsOneWidget);
+    });
+
     testWidgets('shows processing while the engine is starting', (
       WidgetTester tester,
     ) async {
@@ -908,20 +959,6 @@ void main() {
       await tester.pump();
       expect(find.byTooltip('Stop voice input'), findsOneWidget);
       expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
-    });
-
-    testWidgets('system listening shows no spectrum', (
-      WidgetTester tester,
-    ) async {
-      await pumpChatNoHook(tester);
-      expect(sttSettings.engine, SttEngineKind.system);
-
-      await tester.tap(find.byKey(const Key('chatMicButton')));
-      await tester.pump();
-
-      expect(find.byTooltip('Stop voice input'), findsOneWidget);
-      expect(find.byKey(const Key('chatListeningIndicator')), findsNothing);
-      expect(find.byKey(const Key('chatSpectrum')), findsNothing);
     });
 
     testWidgets('mic button grows with the input level', (

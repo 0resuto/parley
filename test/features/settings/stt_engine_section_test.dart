@@ -20,7 +20,9 @@ class FakeSttModelsController extends SttModelsController {
 SttModelsState stateWith({SttModelStatus? moonshine, SttModelStatus? whisper}) {
   return SttModelsState(<SttEngineKind, SttModelStatus>{
     SttEngineKind.moonshine: moonshine ?? const SttModelStatus(),
-    SttEngineKind.whisper: whisper ?? const SttModelStatus(),
+    SttEngineKind.whisper:
+        whisper ??
+        const SttModelStatus(phase: SttModelPhase.ready, progress: 1),
   });
 }
 
@@ -50,19 +52,16 @@ void main() {
     return tester.widget<ListTile>(find.byKey(Key('sttEngine_${engine.id}')));
   }
 
-  testWidgets('system is selected and local models are locked until ready', (
+  testWidgets('Whisper is selected and Moonshine is locked until ready', (
     WidgetTester tester,
   ) async {
     await pumpSection(tester, stateWith());
 
-    expect(tile(tester, SttEngineKind.system).selected, isTrue);
-    expect(tile(tester, SttEngineKind.system).enabled, isTrue);
+    expect(tile(tester, SttEngineKind.whisper).selected, isTrue);
+    expect(tile(tester, SttEngineKind.whisper).enabled, isTrue);
     expect(tile(tester, SttEngineKind.moonshine).enabled, isFalse);
-    expect(tile(tester, SttEngineKind.whisper).enabled, isFalse);
-    expect(
-      find.text('Download the model in Offline models.'),
-      findsNWidgets(2),
-    );
+    expect(find.text('Download the model in Offline models.'), findsOneWidget);
+    expect(find.text('Works without a connection.'), findsOneWidget);
   });
 
   testWidgets('a ready Moonshine model can be selected', (
@@ -84,18 +83,14 @@ void main() {
 
     expect(settings.engine, SttEngineKind.moonshine);
     expect(tile(tester, SttEngineKind.moonshine).selected, isTrue);
-    expect(tile(tester, SttEngineKind.system).selected, isFalse);
+    expect(tile(tester, SttEngineKind.whisper).selected, isFalse);
   });
 
-  testWidgets('a ready Whisper model can be selected', (
+  testWidgets('Whisper can be selected again after Moonshine', (
     WidgetTester tester,
   ) async {
-    await pumpSection(
-      tester,
-      stateWith(
-        whisper: const SttModelStatus(phase: SttModelPhase.ready, progress: 1),
-      ),
-    );
+    settings = MemorySttSettings(engine: SttEngineKind.moonshine);
+    await pumpSection(tester, stateWith());
 
     expect(tile(tester, SttEngineKind.whisper).enabled, isTrue);
     await tester.tap(find.byKey(const Key('sttEngine_whisper')));
@@ -103,7 +98,7 @@ void main() {
 
     expect(settings.engine, SttEngineKind.whisper);
     expect(tile(tester, SttEngineKind.whisper).selected, isTrue);
-    expect(tile(tester, SttEngineKind.system).selected, isFalse);
+    expect(tile(tester, SttEngineKind.moonshine).selected, isFalse);
   });
 
   testWidgets('a downloading model shows progress and stays disabled', (

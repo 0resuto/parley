@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:parley/core/theme.dart';
 import 'package:parley/features/shell/shell_screen.dart';
+import 'package:parley/features/startup/voice_model_initializer.dart';
 
 class ParleyApp extends StatelessWidget {
   const ParleyApp({super.key});
@@ -11,7 +12,7 @@ class ParleyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Parley',
       theme: buildParleyTheme(),
-      home: const ShellScreen(),
+      home: const VoiceModelInitializer(child: ShellScreen()),
     );
   }
 }

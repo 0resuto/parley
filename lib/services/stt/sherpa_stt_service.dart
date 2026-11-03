@@ -140,7 +140,7 @@ class SherpaSttService implements SttService {
   }
 
   @override
-  Future<void> start({bool preferOnDevice = true}) async {
+  Future<void> start() async {
     if (_disposed) {
       return;
     }
@@ -253,7 +253,7 @@ class SherpaSttService implements SttService {
     await _events.close();
   }
 
-  String get _modelName => sttModelFor(engine)?.name ?? 'offline';
+  String get _modelName => sttModelFor(engine).name;
 
   Future<bool> _ensureRecognizer() async {
     if (_recognizer != null) {

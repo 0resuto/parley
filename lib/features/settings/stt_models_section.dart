@@ -27,7 +27,8 @@ class SttModelsSection extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Download once; recognition then works without a connection.',
+            'Whisper Tiny.en is downloaded automatically on first launch. '
+            'Moonshine is optional and faster.',
           ),
         ),
         const SizedBox(height: 4),
@@ -50,38 +51,41 @@ class SttModelsSection extends ConsumerWidget {
     WidgetRef ref,
     SttModel model,
   ) async {
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Download model?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${model.name} (${model.sizeLabel})'),
-              const SizedBox(height: 8),
-              const Text(
-                'The model is downloaded from GitHub and stays on this device. '
-                'Use Wi-Fi for large downloads.',
+    bool? confirmed = true;
+    if (!model.required) {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Download model?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${model.name} (${model.sizeLabel})'),
+                const SizedBox(height: 8),
+                const Text(
+                  'The model is downloaded from GitHub and stays on this device. '
+                  'Use Wi-Fi for large downloads.',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                key: const Key('sttDownloadCancelButton'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                key: const Key('sttDownloadConfirmButton'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Download'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              key: const Key('sttDownloadCancelButton'),
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              key: const Key('sttDownloadConfirmButton'),
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Download'),
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    }
     if (confirmed != true || !context.mounted) {
       return;
     }
@@ -137,7 +141,7 @@ class SttModelsSection extends ConsumerWidget {
     }
     await ref.read(sttModelsControllerProvider.notifier).delete(model.engine);
     if (ref.read(sttEngineProvider) == model.engine) {
-      await ref.read(sttEngineProvider.notifier).select(SttEngineKind.system);
+      await ref.read(sttEngineProvider.notifier).select(SttEngineKind.whisper);
     }
   }
 }
@@ -187,7 +191,7 @@ class _ModelCard extends StatelessWidget {
                       ),
                       if (status.phase == SttModelPhase.ready)
                         Text(
-                          'Downloaded',
+                          model.required ? 'Required' : 'Downloaded',
                           key: Key('sttModelStatus_$id'),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
@@ -209,11 +213,12 @@ class _ModelCard extends StatelessWidget {
                 children: [
                   Text('${(status.progress * 100).round()}%'),
                   const Spacer(),
-                  TextButton(
-                    key: Key('sttCancel_$id'),
-                    onPressed: onCancel,
-                    child: const Text('Cancel'),
-                  ),
+                  if (!model.required)
+                    TextButton(
+                      key: Key('sttCancel_$id'),
+                      onPressed: onCancel,
+                      child: const Text('Cancel'),
+                    ),
                 ],
               ),
             ] else if (status.phase == SttModelPhase.verifying ||
@@ -249,6 +254,16 @@ class _ModelCard extends StatelessWidget {
   }
 
   Widget _action(BuildContext context, String id) {
+    if (model.required) {
+      if (status.phase == SttModelPhase.failed) {
+        return TextButton(
+          key: Key('sttRetry_$id'),
+          onPressed: anotherBusy ? null : onDownload,
+          child: const Text('Retry'),
+        );
+      }
+      return const SizedBox.shrink();
+    }
     return switch (status.phase) {
       SttModelPhase.notDownloaded => TextButton(
         key: Key('sttDownload_$id'),

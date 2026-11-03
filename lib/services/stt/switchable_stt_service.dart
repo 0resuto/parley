@@ -7,16 +7,14 @@ import 'stt_model.dart';
 import 'stt_service.dart';
 import 'sherpa_stt_service.dart';
 
-/// Routes voice input to the system recognizer or a downloaded offline model.
+/// Routes voice input to the selected offline model.
 class SwitchableSttService implements SttService {
   SwitchableSttService({
     required SttSettings settings,
     required Future<Directory?> Function(SttEngineKind) modelDirectory,
-    SttService? systemService,
     Future<SttService> Function(SttEngineKind, Directory)? localFactory,
   }) : _settings = settings,
        _modelDirectory = modelDirectory,
-       _system = systemService ?? SystemSttService(),
        _localFactory =
            localFactory ??
            ((SttEngineKind engine, Directory directory) async {
@@ -25,7 +23,6 @@ class SwitchableSttService implements SttService {
 
   final SttSettings _settings;
   final Future<Directory?> Function(SttEngineKind) _modelDirectory;
-  final SttService _system;
   final Future<SttService> Function(SttEngineKind, Directory) _localFactory;
   final Map<SttEngineKind, SttService> _local = {};
   final StreamController<SttEvent> _events =
@@ -42,17 +39,12 @@ class SwitchableSttService implements SttService {
   Future<bool> initialize() async => !_disposed;
 
   @override
-  Future<void> start({bool preferOnDevice = true}) async {
+  Future<void> start() async {
     if (_disposed) {
       return;
     }
     final SttEngineKind engine = _settings.engine;
-    if (engine == SttEngineKind.system) {
-      await _activate(_system);
-      await _system.start(preferOnDevice: preferOnDevice);
-      return;
-    }
-    final SttModel? model = sttModelFor(engine);
+    final SttModel model = sttModelFor(engine);
     Directory? directory;
     try {
       directory = await _modelDirectory(engine);
@@ -60,7 +52,7 @@ class SwitchableSttService implements SttService {
       directory = null;
     }
     if (directory == null) {
-      _emit(SttFailed(SttModelMissingFailure(model?.name ?? 'offline')));
+      _emit(SttFailed(SttModelMissingFailure(model.name)));
       return;
     }
     SttService? local = _local[engine];
@@ -69,11 +61,11 @@ class SwitchableSttService implements SttService {
         local = await _localFactory(engine, directory);
         _local[engine] = local;
       } catch (_) {
-        _emit(SttFailed(SttModelLoadFailure(model?.name ?? 'offline')));
+        _emit(SttFailed(SttModelLoadFailure(model.name)));
         return;
       }
     }
-    await _activate(local, localEngine: engine);
+    await _activate(local, engine);
     await local.start();
   }
 
@@ -101,7 +93,7 @@ class SwitchableSttService implements SttService {
     await _subscription?.cancel();
     _subscription = null;
     _active = null;
-    final Set<SttService> services = <SttService>{_system, ..._local.values};
+    final List<SttService> services = _local.values.toList();
     _local.clear();
     for (final SttService service in services) {
       await service.dispose();
@@ -109,10 +101,7 @@ class SwitchableSttService implements SttService {
     await _events.close();
   }
 
-  Future<void> _activate(
-    SttService service, {
-    SttEngineKind? localEngine,
-  }) async {
+  Future<void> _activate(SttService service, SttEngineKind engine) async {
     if (!identical(_active, service)) {
       final SttService? old = _active;
       await _subscription?.cancel();
@@ -122,11 +111,11 @@ class SwitchableSttService implements SttService {
         await old.cancel();
       }
     }
-    await _disposeOtherLocals(localEngine);
+    await _disposeOtherLocals(engine);
   }
 
   /// Keeps at most one offline model loaded in memory.
-  Future<void> _disposeOtherLocals(SttEngineKind? keep) async {
+  Future<void> _disposeOtherLocals(SttEngineKind keep) async {
     final List<SttEngineKind> stale = _local.keys
         .where((SttEngineKind engine) => engine != keep)
         .toList();

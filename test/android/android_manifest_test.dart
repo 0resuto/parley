@@ -53,14 +53,9 @@ void main() {
       );
     });
 
-    test('voice input declares RECORD_AUDIO and the recognizer query', () {
+    test('voice input declares RECORD_AUDIO without a system recognizer', () {
       expect(manifest, contains('android.permission.RECORD_AUDIO'));
-      final int queriesStart = manifest.indexOf('<queries>');
-      final int queriesEnd = manifest.indexOf('</queries>');
-      expect(
-        manifest.substring(queriesStart, queriesEnd),
-        contains('android.speech.RecognitionService'),
-      );
+      expect(manifest, isNot(contains('android.speech.RecognitionService')));
     });
 
     test('secure storage prefs are excluded from backup and transfer', () {

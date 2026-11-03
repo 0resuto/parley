@@ -54,7 +54,10 @@ void main() {
   SttModelsState emptyState() {
     return const SttModelsState(<SttEngineKind, SttModelStatus>{
       SttEngineKind.moonshine: SttModelStatus(),
-      SttEngineKind.whisper: SttModelStatus(),
+      SttEngineKind.whisper: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
     });
   }
 
@@ -120,7 +123,10 @@ void main() {
             phase: SttModelPhase.downloading,
             progress: 0.5,
           ),
-          SttEngineKind.whisper: SttModelStatus(),
+          SttEngineKind.whisper: SttModelStatus(
+            phase: SttModelPhase.ready,
+            progress: 1,
+          ),
         });
     final FakeSttModelsController controller = await pumpSection(tester, state);
 
@@ -146,7 +152,10 @@ void main() {
             phase: SttModelPhase.ready,
             progress: 1,
           ),
-          SttEngineKind.whisper: SttModelStatus(),
+          SttEngineKind.whisper: SttModelStatus(
+            phase: SttModelPhase.ready,
+            progress: 1,
+          ),
         });
     final FakeSttModelsController controller = await pumpSection(tester, state);
 
@@ -170,7 +179,10 @@ void main() {
             phase: SttModelPhase.failed,
             error: 'The model download is corrupted. Try again.',
           ),
-          SttEngineKind.whisper: SttModelStatus(),
+          SttEngineKind.whisper: SttModelStatus(
+            phase: SttModelPhase.ready,
+            progress: 1,
+          ),
         });
     final FakeSttModelsController controller = await pumpSection(tester, state);
 
@@ -186,34 +198,45 @@ void main() {
     expect(controller.downloads, [SttEngineKind.moonshine]);
   });
 
-  testWidgets('another download disables the second download button', (
+  testWidgets('the required model has no download or delete action', (
     WidgetTester tester,
   ) async {
-    final SttModelsState state =
-        const SttModelsState(<SttEngineKind, SttModelStatus>{
-          SttEngineKind.moonshine: SttModelStatus(
-            phase: SttModelPhase.downloading,
-            progress: 0.2,
-          ),
-          SttEngineKind.whisper: SttModelStatus(),
-        });
-    await pumpSection(tester, state);
+    await pumpSection(tester, emptyState());
 
-    await tester.ensureVisible(find.byKey(const Key('sttDownload_whisper')));
-    final TextButton button = tester.widget<TextButton>(
-      find.byKey(const Key('sttDownload_whisper')),
-    );
-    expect(button.onPressed, isNull);
+    expect(find.byKey(const Key('sttDownload_whisper')), findsNothing);
+    expect(find.byKey(const Key('sttDelete_whisper')), findsNothing);
+    expect(find.text('Required'), findsOneWidget);
   });
 
-  testWidgets('deleting the selected offline model falls back to system', (
+  testWidgets('a failed required model can be retried', (
+    WidgetTester tester,
+  ) async {
+    const SttModelsState state = SttModelsState(<SttEngineKind, SttModelStatus>{
+      SttEngineKind.moonshine: SttModelStatus(),
+      SttEngineKind.whisper: SttModelStatus(
+        phase: SttModelPhase.failed,
+        error: 'Could not download the speech model.',
+      ),
+    });
+    final FakeSttModelsController controller = await pumpSection(tester, state);
+
+    await tester.tap(find.byKey(const Key('sttRetry_whisper')));
+    await tester.pumpAndSettle();
+
+    expect(controller.downloads, [SttEngineKind.whisper]);
+  });
+
+  testWidgets('deleting the selected model falls back to Whisper', (
     WidgetTester tester,
   ) async {
     final MemorySttSettings settings = MemorySttSettings(
-      engine: SttEngineKind.whisper,
+      engine: SttEngineKind.moonshine,
     );
     const SttModelsState state = SttModelsState(<SttEngineKind, SttModelStatus>{
-      SttEngineKind.moonshine: SttModelStatus(),
+      SttEngineKind.moonshine: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
       SttEngineKind.whisper: SttModelStatus(
         phase: SttModelPhase.ready,
         progress: 1,
@@ -221,11 +244,11 @@ void main() {
     });
     await pumpSection(tester, state, settings: settings);
 
-    await tester.tap(find.byKey(const Key('sttDelete_whisper')));
+    await tester.tap(find.byKey(const Key('sttDelete_moonshine')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sttDeleteConfirmButton')));
     await tester.pumpAndSettle();
 
-    expect(settings.engine, SttEngineKind.system);
+    expect(settings.engine, SttEngineKind.whisper);
   });
 }

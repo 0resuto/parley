@@ -17,7 +17,6 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
   late bool _autoPlay;
   late double _speed;
   late bool _autoSend;
-  late bool _preferOnDevice;
 
   @override
   void initState() {
@@ -27,7 +26,6 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
     _autoPlay = settings.autoPlay;
     _speed = settings.speechSpeed;
     _autoSend = sttSettings.autoSend;
-    _preferOnDevice = sttSettings.preferOnDevice;
   }
 
   @override
@@ -86,20 +84,6 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
               _autoSend = value;
             });
             ref.read(sttSettingsProvider).setAutoSend(value);
-          },
-        ),
-        SwitchListTile(
-          key: const Key('sttOnDeviceSwitch'),
-          title: const Text('Prefer on-device recognition'),
-          subtitle: const Text(
-            'Use the phone\'s offline speech recognition when available.',
-          ),
-          value: _preferOnDevice,
-          onChanged: (bool value) {
-            setState(() {
-              _preferOnDevice = value;
-            });
-            ref.read(sttSettingsProvider).setPreferOnDevice(value);
           },
         ),
         const SttEngineSection(),

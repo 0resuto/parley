@@ -45,6 +45,26 @@ class SttModelsController extends Notifier<SttModelsState> {
 
   SttModel? modelFor(SttEngineKind engine) => _manager.modelFor(engine);
 
+  /// Ensures the mandatory model is present before the app can be used.
+  ///
+  /// Downloads Whisper on first launch. Failures stay in the model status so
+  /// the bootstrap screen can offer Retry.
+  Future<void> ensureRequired() async {
+    await _manager.refresh();
+    state = SttModelsState(_manager.snapshot);
+    if (await _manager.isReady(SttEngineKind.whisper)) {
+      return;
+    }
+    if (state.statusOf(SttEngineKind.whisper).isBusy) {
+      return;
+    }
+    try {
+      await _manager.download(SttEngineKind.whisper);
+    } catch (_) {
+      // The failed status is surfaced by the model manager stream.
+    }
+  }
+
   Future<bool> download(SttEngineKind engine) => _manager.download(engine);
 
   Future<void> cancel() => _manager.cancel();

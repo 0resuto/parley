@@ -14,42 +14,35 @@ void main() {
   });
 
   test('defaults match the spec', () {
-    expect(settings.engine, SttEngineKind.system);
+    expect(settings.engine, SttEngineKind.whisper);
     expect(settings.autoSend, isFalse);
-    expect(settings.preferOnDevice, isTrue);
   });
 
   test('writes are persisted', () async {
-    await settings.setEngine(SttEngineKind.whisper);
+    await settings.setEngine(SttEngineKind.moonshine);
     await settings.setAutoSend(true);
-    await settings.setPreferOnDevice(false);
 
-    expect(settings.engine, SttEngineKind.whisper);
+    expect(settings.engine, SttEngineKind.moonshine);
     expect(settings.autoSend, isTrue);
-    expect(settings.preferOnDevice, isFalse);
-    expect(prefs.getString('stt_engine'), 'whisper');
+    expect(prefs.getString('stt_engine'), 'moonshine');
     expect(prefs.getBool('stt_auto_send'), isTrue);
-    expect(prefs.getBool('stt_prefer_on_device'), isFalse);
   });
 
-  test('an unknown stored engine falls back to system', () async {
-    await prefs.setString('stt_engine', 'unknown');
+  test('an unknown or removed stored engine falls back to Whisper', () async {
+    await prefs.setString('stt_engine', 'system');
 
-    expect(settings.engine, SttEngineKind.system);
+    expect(settings.engine, SttEngineKind.whisper);
   });
 
   test('memory settings round-trip', () async {
     final MemorySttSettings memory = MemorySttSettings();
-    expect(memory.engine, SttEngineKind.system);
+    expect(memory.engine, SttEngineKind.whisper);
     expect(memory.autoSend, isFalse);
-    expect(memory.preferOnDevice, isTrue);
 
     await memory.setEngine(SttEngineKind.moonshine);
     await memory.setAutoSend(true);
-    await memory.setPreferOnDevice(false);
 
     expect(memory.engine, SttEngineKind.moonshine);
     expect(memory.autoSend, isTrue);
-    expect(memory.preferOnDevice, isFalse);
   });
 }

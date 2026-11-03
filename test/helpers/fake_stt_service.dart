@@ -19,8 +19,8 @@ class FakeSttService implements SttService {
   }
 
   @override
-  Future<void> start({bool preferOnDevice = true}) async {
-    calls.add('start:$preferOnDevice');
+  Future<void> start() async {
+    calls.add('start');
     if (startEmitsStarted) {
       _events.add(const SttStarted());
     }

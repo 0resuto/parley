@@ -50,10 +50,5 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE"/>
         </intent>
-        <!-- Required by speech_to_text on Android 11+ (package visibility):
-             without it the plugin cannot see the system speech recognizer. -->
-        <intent>
-            <action android:name="android.speech.RecognitionService"/>
-        </intent>
     </queries>
 </manifest>

@@ -37,20 +37,9 @@ void main() {
           .value,
       isFalse,
     );
-    expect(
-      tester
-          .widget<SwitchListTile>(find.byKey(const Key('sttOnDeviceSwitch')))
-          .value,
-      isTrue,
-    );
 
     await tester.tap(find.byKey(const Key('sttAutoSendSwitch')));
     await tester.pumpAndSettle();
     expect(sttSettings.autoSend, isTrue);
-
-    await tester.ensureVisible(find.byKey(const Key('sttOnDeviceSwitch')));
-    await tester.tap(find.byKey(const Key('sttOnDeviceSwitch')));
-    await tester.pumpAndSettle();
-    expect(sttSettings.preferOnDevice, isFalse);
   });
 }

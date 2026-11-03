@@ -12,6 +12,7 @@ class SttModel {
     required this.archiveRoot,
     required this.files,
     required this.license,
+    this.required = false,
   });
 
   final SttEngineKind engine;
@@ -28,6 +29,9 @@ class SttModel {
   final List<String> files;
 
   final String license;
+
+  /// True when the app requires this model before it can be used.
+  final bool required;
 
   /// Locale-independent size label such as `29 MB`.
   String get sizeLabel => formatModelBytes(downloadBytes);
@@ -86,15 +90,11 @@ const List<SttModel> sttModels = [
       'tiny.en-tokens.txt',
     ],
     license: 'MIT',
+    required: true,
   ),
 ];
 
-/// Returns the model for [engine], or null for the system engine.
-SttModel? sttModelFor(SttEngineKind engine) {
-  for (final SttModel model in sttModels) {
-    if (model.engine == engine) {
-      return model;
-    }
-  }
-  return null;
+/// Returns the model for [engine].
+SttModel sttModelFor(SttEngineKind engine) {
+  return sttModels.firstWhere((SttModel model) => model.engine == engine);
 }

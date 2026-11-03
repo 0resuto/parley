@@ -63,7 +63,7 @@ void main() {
 
     expect(state().phase, SttPhase.listening);
     expect(tts.stopCalls, 1);
-    expect(stt.calls, ['initialize', 'start:true']);
+    expect(stt.calls, ['initialize', 'start']);
   });
 
   test('stays busy until the engine reports that it started', () async {
@@ -127,15 +127,6 @@ void main() {
     expect(state().phase, SttPhase.idle);
     expect(state().failure, isA<SttUnavailableFailure>());
     expect(state().failureSequence, 1);
-  });
-
-  test('preferOnDevice follows the setting', () async {
-    await settings.setPreferOnDevice(false);
-
-    await controller().start();
-    await flush();
-
-    expect(stt.calls, ['initialize', 'start:false']);
   });
 
   test('toggle starts and stops', () async {

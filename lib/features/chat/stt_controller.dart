@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/stt/stt_providers.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'package:parley/services/tts/tts_service.dart';
@@ -88,7 +87,6 @@ class SttController extends Notifier<SttState> {
       return;
     }
     final SttService service = ref.read(sttServiceProvider);
-    final bool preferOnDevice = ref.read(sttSettingsProvider).preferOnDevice;
     // Show the busy indicator while the engine initializes or loads its model;
     // SttStarted moves the phase to listening.
     state = const SttState(phase: SttPhase.processing);
@@ -106,7 +104,7 @@ class SttController extends Notifier<SttState> {
         _fail(const SttUnavailableFailure());
         return;
       }
-      await service.start(preferOnDevice: preferOnDevice);
+      await service.start();
     } on SttFailure catch (failure) {
       _fail(failure);
     } catch (_) {

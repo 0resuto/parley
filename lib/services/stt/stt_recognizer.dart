@@ -59,9 +59,6 @@ OfflineModelConfig buildOfflineModelConfig(
       numThreads: 2,
       debug: false,
     ),
-    SttEngineKind.system => throw UnsupportedError(
-      'The system recognizer is not an offline model.',
-    ),
   };
 }
 

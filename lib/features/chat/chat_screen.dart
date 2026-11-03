@@ -9,8 +9,10 @@ import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/settings/document_screen.dart';
 import 'package:parley/features/settings/settings_providers.dart';
+import 'package:parley/features/settings/stt_models_controller.dart';
 import 'package:parley/features/settings/settings_screen.dart';
 import 'package:parley/services/documents/document_store.dart';
+import 'package:parley/services/stt/stt_engine.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'chat_controller.dart';
 import 'chat_session_store.dart';
@@ -1031,10 +1033,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildComposer(ChatState state, SttState sttState) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    // Only the offline engines compute real frequency bands. The system
-    // recognizer reports volume alone, so it gets no spectrum.
-    final bool showSpectrum =
-        sttState.isListening && ref.watch(sttSettingsProvider).engine.isLocal;
+    final bool voiceReady = ref.watch(
+      sttModelsControllerProvider.select(
+        (SttModelsState state) => state.statusOf(SttEngineKind.whisper).isReady,
+      ),
+    );
+    final bool showSpectrum = voiceReady && sttState.isListening;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1044,7 +1048,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             padding: EdgeInsets.fromLTRB(20, 8, 20, 2),
             child: SttSpectrum(),
           )
-        else if (sttState.isProcessing)
+        else if (voiceReady && sttState.isProcessing)
           _sttStatus(context),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -1077,25 +1081,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: sttState.isProcessing
-                      ? const Center(
-                          child: SizedBox(
-                            key: Key('chatMicBusy'),
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                if (voiceReady)
+                  SizedBox(
+                    width: 52,
+                    height: 52,
+                    child: sttState.isProcessing
+                        ? const Center(
+                            child: SizedBox(
+                              key: Key('chatMicBusy'),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : Center(
+                            child: SttMicButton(
+                              isListening: sttState.isListening,
+                              onPressed: _toggleMic,
+                            ),
                           ),
-                        )
-                      : Center(
-                          child: SttMicButton(
-                            isListening: sttState.isListening,
-                            onPressed: _toggleMic,
-                          ),
-                        ),
-                ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
                   child: state.isStreaming

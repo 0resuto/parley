@@ -19,8 +19,8 @@ class RecordingSttService implements SttService {
   }
 
   @override
-  Future<void> start({bool preferOnDevice = true}) async {
-    calls.add('start:$preferOnDevice');
+  Future<void> start() async {
+    calls.add('start');
     _events.add(const SttStarted());
   }
 
@@ -49,7 +49,6 @@ class RecordingSttService implements SttService {
 void main() {
   late Directory directory;
   late MemorySttSettings settings;
-  late RecordingSttService system;
   late RecordingSttService local;
   late SwitchableSttService? service;
   late List<SttEvent> events;
@@ -57,7 +56,6 @@ void main() {
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('parley_switch_');
     settings = MemorySttSettings();
-    system = RecordingSttService();
     local = RecordingSttService();
     service = null;
     events = [];
@@ -77,7 +75,6 @@ void main() {
     final SwitchableSttService created = SwitchableSttService(
       settings: settings,
       modelDirectory: modelDirectory ?? (SttEngineKind _) async => directory,
-      systemService: system,
       localFactory:
           localFactory ?? (SttEngineKind _, Directory _) async => local,
     );
@@ -88,12 +85,11 @@ void main() {
 
   Future<void> flush() => Future<void>.delayed(Duration.zero);
 
-  test('uses the system engine by default', () async {
-    await build().start(preferOnDevice: false);
+  test('uses the selected local engine', () async {
+    await build().start();
     await flush();
 
-    expect(system.calls, ['start:false']);
-    expect(local.calls, isEmpty);
+    expect(local.calls, ['start']);
     expect(events.whereType<SttStarted>(), hasLength(1));
   });
 
@@ -106,7 +102,6 @@ void main() {
       events.whereType<SttFailed>().single.failure,
       isA<SttModelMissingFailure>(),
     );
-    expect(system.calls, isEmpty);
     expect(local.calls, isEmpty);
   });
 
@@ -115,21 +110,8 @@ void main() {
     await build().start();
     await flush();
 
-    expect(local.calls, ['start:true']);
-    expect(system.calls, isEmpty);
+    expect(local.calls, ['start']);
     expect(events.whereType<SttStarted>(), hasLength(1));
-  });
-
-  test('switching engines cancels the previous service', () async {
-    final SwitchableSttService router = build();
-    await router.start();
-    await flush();
-    await settings.setEngine(SttEngineKind.moonshine);
-    await router.start();
-    await flush();
-
-    expect(system.calls, contains('cancel'));
-    expect(local.calls, ['start:true']);
   });
 
   test('switching local engines disposes the previous recognizer', () async {
@@ -152,23 +134,6 @@ void main() {
 
     expect(locals[SttEngineKind.moonshine]!.calls, contains('dispose'));
     expect(locals[SttEngineKind.whisper]!.calls, isNot(contains('dispose')));
-  });
-
-  test('switching to system releases the offline recognizer', () async {
-    final RecordingSttService local = RecordingSttService();
-    await settings.setEngine(SttEngineKind.moonshine);
-    final SwitchableSttService router = build(
-      localFactory: (SttEngineKind _, Directory _) async => local,
-    );
-    await router.start();
-    await flush();
-
-    await settings.setEngine(SttEngineKind.system);
-    await router.start(preferOnDevice: false);
-    await flush();
-
-    expect(local.calls, contains('dispose'));
-    expect(system.calls, contains('start:false'));
   });
 
   test('switching back reloads a released local engine', () async {
@@ -212,7 +177,7 @@ void main() {
     await build().start();
     await flush();
 
-    system.emitFinal('hello');
+    local.emitFinal('hello');
     await flush();
 
     expect(events.whereType<SttFinalResult>().single.text, 'hello');
@@ -224,6 +189,6 @@ void main() {
     await flush();
     await created.dispose();
 
-    expect(system.calls, contains('dispose'));
+    expect(local.calls, contains('dispose'));
   });
 }

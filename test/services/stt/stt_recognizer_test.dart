@@ -35,11 +35,4 @@ void main() {
     expect(config.tokens, endsWith('tiny.en-tokens.txt'));
     expect(config.moonshine.encoder, isEmpty);
   });
-
-  test('the system engine has no offline model config', () {
-    expect(
-      () => buildOfflineModelConfig(SttEngineKind.system, Directory('/models')),
-      throwsUnsupportedError,
-    );
-  });
 }
