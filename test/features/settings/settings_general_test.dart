@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/core/failures.dart';
+import 'package:parley/features/settings/ai_provider_section.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
 import 'package:parley/features/settings/settings_section.dart';
@@ -195,6 +196,42 @@ void main() {
   }
 
   group('SettingsScreen general (4.5)', () {
+    testWidgets('AI provider buttons wrap at 2x text scale', (
+      WidgetTester tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 740));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(settings),
+            secureKeyStoreProvider.overrideWithValue(keys),
+            llmClientProvider.overrideWithValue(llm),
+            modelCatalogProvider.overrideWithValue(ModelCatalog()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (BuildContext context) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(2)),
+                  child: const SingleChildScrollView(
+                    child: AiProviderSection(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test connection'), findsOneWidget);
+      expect(find.text('Load models'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('shows all sections', (WidgetTester tester) async {
       await pumpSettings(tester);
 

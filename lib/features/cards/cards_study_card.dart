@@ -182,6 +182,60 @@ class CardsStudyCard extends StatelessWidget {
   }
 
   Widget _ratings(BuildContext context) {
+    final bool largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    if (largeText) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _ratingButton(
+                  context,
+                  Rating.again,
+                  'Again',
+                  background: _againBackground,
+                  foreground: _againForeground,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ratingButton(
+                  context,
+                  Rating.hard,
+                  'Hard',
+                  background: _hardBackground,
+                  foreground: _hardForeground,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _ratingButton(
+                  context,
+                  Rating.good,
+                  'Good',
+                  background: _goodBackground,
+                  foreground: _goodForeground,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ratingButton(
+                  context,
+                  Rating.easy,
+                  'Easy',
+                  background: _easyBackground,
+                  foreground: _easyForeground,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         Expanded(
@@ -252,7 +306,7 @@ class CardsStudyCard extends StatelessWidget {
             context,
           ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
-        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        child: Text(label, textAlign: TextAlign.center),
       ),
     );
   }

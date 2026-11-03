@@ -43,6 +43,7 @@ void main() {
   Future<void> pumpDictionary(
     WidgetTester tester, {
     FakeDictionaryService? dictionary,
+    double textScale = 1,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -57,7 +58,16 @@ void main() {
             const EmptyUserDictionaryLookup(),
           ),
         ],
-        child: const MaterialApp(home: DictionaryScreen()),
+        child: MaterialApp(
+          home: Builder(
+            builder: (BuildContext context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: const DictionaryScreen(),
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -92,6 +102,16 @@ void main() {
         tester.getSize(find.widgetWithText(ChoiceChip, 'All')).height,
         greaterThanOrEqualTo(44),
       );
+    });
+
+    testWidgets('word card survives 2x text scale', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'extraordinary');
+      await pumpDictionary(tester, textScale: 2);
+
+      expect(find.text('extraordinary'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('shows the word count and n/N while filtering', (

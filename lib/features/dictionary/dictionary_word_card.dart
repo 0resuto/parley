@@ -26,6 +26,7 @@ class DictionaryWordCard extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
     final Color accent = statusColor(colors, status);
     final bool isKnown = status == UnitStatus.known;
+    final bool largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     final bool overdue =
         !isKnown &&
         unit.due.toUtc().isBefore(
@@ -70,7 +71,7 @@ class DictionaryWordCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             unit.text,
-                            maxLines: 1,
+                            maxLines: largeText ? 2 : 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
@@ -78,38 +79,29 @@ class DictionaryWordCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (!isKnown) ...[
-                          _dueBadge(theme, dueColor, fullDue, compactDue),
-                          const SizedBox(width: 6),
+                        if (!largeText) ...[
+                          const SizedBox(width: 8),
+                          if (!isKnown) ...[
+                            _dueBadge(theme, dueColor, fullDue, compactDue),
+                            const SizedBox(width: 6),
+                          ],
+                          _statusChip(accent),
                         ],
-                        Chip(
-                          label: Text(
-                            statusLabel(status),
-                            style: TextStyle(
-                              fontSize: 10,
-                              height: 1.1,
-                              fontWeight: FontWeight.w600,
-                              color: accent,
-                            ),
-                          ),
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
-                          padding: EdgeInsets.zero,
-                          visualDensity: const VisualDensity(
-                            horizontal: -4,
-                            vertical: -4,
-                          ),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: accent.withValues(alpha: 0.14),
-                          side: BorderSide(
-                            color: accent.withValues(alpha: 0.35),
-                          ),
-                        ),
                       ],
                     ),
+                    if (largeText) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (!isKnown)
+                            _dueBadge(theme, dueColor, fullDue, compactDue),
+                          _statusChip(accent),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 1),
                     WordMeaning(
                       textKey: unit.textKey,
@@ -134,6 +126,26 @@ class DictionaryWordCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _statusChip(Color accent) {
+    return Chip(
+      label: Text(
+        statusLabel(status),
+        style: TextStyle(
+          fontSize: 10,
+          height: 1.1,
+          fontWeight: FontWeight.w600,
+          color: accent,
+        ),
+      ),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: EdgeInsets.zero,
+      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      backgroundColor: accent.withValues(alpha: 0.14),
+      side: BorderSide(color: accent.withValues(alpha: 0.35)),
     );
   }
 

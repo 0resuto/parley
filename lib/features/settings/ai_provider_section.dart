@@ -266,26 +266,25 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ElevatedButton(
                 onPressed: _testing || _loadingModels ? null : _testConnection,
                 child: const Text('Test connection'),
               ),
-              const SizedBox(width: 8),
               OutlinedButton(
                 key: const Key('loadModelsButton'),
                 onPressed: _testing || _loadingModels ? null : _loadModels,
                 child: const Text('Load models'),
               ),
               if (_testing || _loadingModels)
-                const Padding(
-                  padding: EdgeInsets.only(left: 12),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
             ],
           ),
