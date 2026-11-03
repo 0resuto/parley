@@ -1449,6 +1449,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     maxLines: 5,
                     decoration: const InputDecoration(
                       hintText: 'Type a message',
+                      filled: false,
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.fromLTRB(16, 14, 6, 14),
                     ),
@@ -1635,7 +1636,6 @@ class _EditMessageDialogState extends State<_EditMessageDialog> {
         autofocus: true,
         minLines: 1,
         maxLines: 5,
-        decoration: const InputDecoration(border: OutlineInputBorder()),
       ),
       actions: [
         TextButton(

@@ -27,6 +27,14 @@ ThemeData buildParleyTheme() {
     seedColor: const Color(0xFF7C9CF5),
     brightness: Brightness.dark,
   );
+  final OutlineInputBorder fieldBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(18),
+    borderSide: BorderSide.none,
+  );
+  final OutlineInputBorder focusedFieldBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(18),
+    borderSide: BorderSide(color: colorScheme.primary, width: 1.2),
+  );
   return ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
@@ -38,6 +46,23 @@ ThemeData buildParleyTheme() {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colorScheme.surfaceContainerHigh,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: fieldBorder,
+      enabledBorder: fieldBorder,
+      focusedBorder: focusedFieldBorder,
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: colorScheme.error, width: 1.2),
+      ),
+      hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
     ),
   );
 }

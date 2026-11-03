@@ -103,6 +103,14 @@ void main() {
   }
 
   group('DictionaryEditScreen', () {
+    testWidgets('add form keeps screen gutters', (WidgetTester tester) async {
+      await pumpHarness(tester);
+
+      final Rect field = tester.getRect(find.byType(TextField));
+      expect(field.left, greaterThanOrEqualTo(16));
+      expect(field.right, lessThanOrEqualTo(784));
+    });
+
     testWidgets('add creates a unit and closes the screen', (
       WidgetTester tester,
     ) async {

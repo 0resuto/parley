@@ -92,7 +92,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     final UnitRepository repo = ref.watch(unitRepositoryProvider);
     final Clock clock = ref.watch(clockProvider);
     final DateTime now = clock.now();
-    final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       // The shell owns the keyboard inset for tab screens.
@@ -115,21 +114,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                         icon: const Icon(Icons.close),
                         onPressed: _clearSearch,
                       ),
-                filled: true,
-                fillColor: colors.surfaceContainerHigh,
-                contentPadding: const EdgeInsets.symmetric(vertical: 13),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide(color: colors.primary, width: 1.2),
-                ),
               ),
               onChanged: (String value) {
                 setState(() {

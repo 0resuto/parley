@@ -100,12 +100,17 @@ class _AddScreenState extends ConsumerState<_AddScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Add word')),
-      body: _UnitFormBody(
-        textController: _textController,
-        textError: _textError,
-        formError: _formError,
-        saving: _saving,
-        onSave: _save,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _UnitFormBody(
+            textController: _textController,
+            textError: _textError,
+            formError: _formError,
+            saving: _saving,
+            onSave: _save,
+          ),
+        ],
       ),
     );
   }
@@ -386,11 +391,7 @@ class _UnitFormBody extends StatelessWidget {
       children: [
         TextField(
           controller: textController,
-          decoration: InputDecoration(
-            labelText: 'Word',
-            errorText: textError,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(labelText: 'Word', errorText: textError),
           textInputAction: TextInputAction.done,
         ),
         if (error != null) ...[

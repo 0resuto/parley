@@ -207,9 +207,6 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
                     controller: _editController,
                     minLines: 8,
                     maxLines: 12,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
                   ),
                   const SizedBox(height: 8),
                   _Counter(used: _editController.text.length, limit: limit),
