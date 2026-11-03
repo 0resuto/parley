@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parley/core/clock.dart';
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/db/database.dart' hide Unit;
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/unit_repository.dart';
@@ -193,6 +194,13 @@ void main() {
       expect(find.text('All caught up.'), findsOneWidget);
       expect(find.text('Show answer'), findsNothing);
       expect(find.text('Again'), findsNothing);
+
+      final Finder empty = find.byType(EmptyStateView);
+      expect(empty, findsOneWidget);
+      final EmptyStateView state = tester.widget<EmptyStateView>(empty);
+      final ColorScheme colors = Theme.of(tester.element(empty)).colorScheme;
+      expect(state.iconColor, colors.primary);
+      expect(state.secondaryAction, isNotNull);
     });
 
     testWidgets('review ahead shows future cards and returns to due', (

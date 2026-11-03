@@ -166,69 +166,32 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
   }
 
   Widget _caughtUpState(CardsController controller, {required bool ahead}) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 68,
-              height: 68,
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHigh,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                ahead ? Icons.fast_forward : Icons.task_alt,
-                size: 32,
-                color: colors.primary,
-              ),
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return EmptyStateView(
+      icon: ahead ? Icons.fast_forward : Icons.task_alt,
+      iconColor: colors.primary,
+      title: ahead ? 'No more cards ahead.' : 'All caught up.',
+      message: ahead
+          ? 'You reached the end of the upcoming queue.'
+          : 'No cards are due right now.',
+      action: ahead
+          ? OutlinedButton.icon(
+              key: const Key('cardsBackToDueEmpty'),
+              onPressed: controller.reviewDue,
+              icon: const Icon(Icons.event_available),
+              label: const Text('Back to due cards'),
+            )
+          : FilledButton.tonalIcon(
+              key: const Key('cardsReviewAhead'),
+              onPressed: controller.reviewAhead,
+              icon: const Icon(Icons.fast_forward),
+              label: const Text('Review ahead'),
             ),
-            const SizedBox(height: 16),
-            Text(
-              ahead ? 'No more cards ahead.' : 'All caught up.',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              ahead
-                  ? 'You reached the end of the upcoming queue.'
-                  : 'No cards are due right now.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 18),
-            if (ahead)
-              OutlinedButton.icon(
-                key: const Key('cardsBackToDueEmpty'),
-                onPressed: controller.reviewDue,
-                icon: const Icon(Icons.event_available),
-                label: const Text('Back to due cards'),
-              )
-            else
-              FilledButton.tonalIcon(
-                key: const Key('cardsReviewAhead'),
-                onPressed: controller.reviewAhead,
-                icon: const Icon(Icons.fast_forward),
-                label: const Text('Review ahead'),
-              ),
-            const SizedBox(height: 4),
-            TextButton.icon(
-              key: const Key('cardsRefreshButton'),
-              onPressed: controller.refresh,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Check again'),
-            ),
-          ],
-        ),
+      secondaryAction: TextButton.icon(
+        key: const Key('cardsRefreshButton'),
+        onPressed: controller.refresh,
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Check again'),
       ),
     );
   }

@@ -8,20 +8,26 @@ class EmptyStateView extends StatelessWidget {
     required this.title,
     this.message,
     this.action,
+    this.secondaryAction,
+    this.iconColor,
   });
 
   final IconData icon;
   final String title;
   final String? message;
   final Widget? action;
+  final Widget? secondaryAction;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     return _StateBody(
       icon: icon,
+      iconColor: iconColor,
       title: title,
       message: message,
       action: action,
+      secondaryAction: secondaryAction,
     );
   }
 }
@@ -93,6 +99,7 @@ class _StateBody extends StatelessWidget {
     required this.title,
     this.message,
     this.action,
+    this.secondaryAction,
     this.iconColor,
   });
 
@@ -100,6 +107,7 @@ class _StateBody extends StatelessWidget {
   final String title;
   final String? message;
   final Widget? action;
+  final Widget? secondaryAction;
   final Color? iconColor;
 
   @override
@@ -143,7 +151,14 @@ class _StateBody extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ],
-            if (action != null) ...[const SizedBox(height: 18), action!],
+            if (action != null || secondaryAction != null) ...[
+              const SizedBox(height: 18),
+              ?action,
+              if (secondaryAction != null) ...[
+                if (action != null) const SizedBox(height: 4),
+                secondaryAction!,
+              ],
+            ],
           ],
         ),
       ),
