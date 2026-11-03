@@ -98,7 +98,7 @@ void main() {
   }
 
   Future<void> save(WidgetTester tester) async {
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
   }
 
@@ -374,7 +374,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'cow');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pump();
 
       // The screen is closed while the duplicate lookup is in flight.
@@ -404,7 +404,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'cow');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pump();
 
       await tester.pumpWidget(const SizedBox());
@@ -434,7 +434,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'cow');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pump();
 
       await tester.pumpWidget(const SizedBox());
@@ -465,7 +465,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'Milk');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pump();
 
       await tester.pumpWidget(const SizedBox());

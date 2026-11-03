@@ -729,7 +729,7 @@ void main() {
 
       expect(
         tester
-            .widget<ElevatedButton>(find.byKey(const Key('wordPopupAddButton')))
+            .widget<FilledButton>(find.byKey(const Key('wordPopupAddButton')))
             .onPressed,
         isNull,
       );

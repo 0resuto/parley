@@ -177,7 +177,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
           children: [
             const Text('Something went wrong.'),
             const SizedBox(height: 8),
-            ElevatedButton(
+            FilledButton(
               key: const Key('conversationsRetryButton'),
               onPressed: _load,
               child: const Text('Retry'),

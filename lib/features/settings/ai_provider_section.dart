@@ -217,14 +217,14 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             'AI provider',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: TextField(
             key: const Key('baseUrlField'),
             controller: _baseUrlController,
@@ -265,13 +265,13 @@ class _AiProviderSectionState extends ConsumerState<AiProviderSection> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              ElevatedButton(
+              FilledButton(
                 onPressed: _testing || _loadingModels ? null : _testConnection,
                 child: const Text('Test connection'),
               ),

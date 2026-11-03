@@ -129,7 +129,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('6001 / 6000'), findsOneWidget);
-      final ElevatedButton save = tester.widget(
+      final FilledButton save = tester.widget(
         find.byKey(const Key('documentSaveButton')),
       );
       expect(save.onPressed, isNull);

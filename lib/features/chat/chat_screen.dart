@@ -762,7 +762,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   children: [
                     const Text('Something went wrong.'),
                     const SizedBox(height: 8),
-                    ElevatedButton(
+                    FilledButton(
                       key: const Key('chatLoadRetryButton'),
                       onPressed: _start,
                       child: const Text('Retry'),

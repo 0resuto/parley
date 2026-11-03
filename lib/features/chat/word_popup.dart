@@ -473,7 +473,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
                           onPressed: null,
                           child: const Text('In dictionary'),
                         )
-                      : ElevatedButton(
+                      : FilledButton(
                           key: const Key('wordPopupAddButton'),
                           onPressed: _adding || _markingKnown || !_localLoaded
                               ? null

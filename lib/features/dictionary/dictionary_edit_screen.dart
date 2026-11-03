@@ -401,7 +401,7 @@ class _UnitFormBody extends StatelessWidget {
         const SizedBox(height: 12),
         SizedBox(
           height: 48,
-          child: ElevatedButton(
+          child: FilledButton(
             onPressed: saving ? null : onSave,
             child: saving
                 ? const SizedBox(

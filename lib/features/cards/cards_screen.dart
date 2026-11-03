@@ -241,7 +241,7 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
             const SizedBox(height: 12),
             Text(error, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton(
+            FilledButton(
               key: const Key('cardsRetryButton'),
               onPressed: controller.refresh,
               child: const Text('Retry'),

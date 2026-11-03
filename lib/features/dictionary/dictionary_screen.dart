@@ -290,7 +290,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                 child: const Text('Clear filters'),
               )
             else
-              FilledButton.tonalIcon(
+              FilledButton.icon(
                 onPressed: _openAdd,
                 icon: const Icon(Icons.add),
                 label: const Text('Add word'),

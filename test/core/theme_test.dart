@@ -35,4 +35,27 @@ void main() {
 
     expect(theme.chipTheme.shape, isA<StadiumBorder>());
   });
+
+  test('button themes share height and shape', () {
+    final ThemeData theme = buildParleyTheme();
+    const Set<WidgetState> states = <WidgetState>{};
+
+    expect(
+      theme.filledButtonTheme.style?.minimumSize?.resolve(states),
+      const Size(0, 48),
+    );
+    expect(
+      theme.outlinedButtonTheme.style?.minimumSize?.resolve(states),
+      const Size(0, 48),
+    );
+    expect(
+      theme.textButtonTheme.style?.minimumSize?.resolve(states),
+      const Size(0, 44),
+    );
+
+    final RoundedRectangleBorder filled =
+        theme.filledButtonTheme.style!.shape!.resolve(states)!
+            as RoundedRectangleBorder;
+    expect(filled.borderRadius, BorderRadius.circular(16));
+  });
 }

@@ -194,7 +194,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
                 children: [
                   const Text('Something went wrong.'),
                   const SizedBox(height: 8),
-                  ElevatedButton(onPressed: _load, child: const Text('Retry')),
+                  FilledButton(onPressed: _load, child: const Text('Retry')),
                 ],
               ),
             )
@@ -216,7 +216,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
                       Expanded(
                         child: SizedBox(
                           height: 48,
-                          child: ElevatedButton(
+                          child: FilledButton(
                             key: const Key('documentSaveButton'),
                             onPressed:
                                 _editController.text.length > limit || _saving

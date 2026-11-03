@@ -196,6 +196,20 @@ void main() {
   }
 
   group('SettingsScreen general (4.5)', () {
+    testWidgets('AI provider field has breathing room below its title', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      final double titleBottom = tester
+          .getBottomLeft(find.text('AI provider'))
+          .dy;
+      final double fieldTop = tester
+          .getTopLeft(find.byKey(const Key('baseUrlField')))
+          .dy;
+      expect(fieldTop - titleBottom, greaterThanOrEqualTo(8));
+    });
+
     testWidgets('AI provider buttons wrap at 2x text scale', (
       WidgetTester tester,
     ) async {

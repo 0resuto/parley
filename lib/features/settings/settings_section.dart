@@ -10,7 +10,7 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: child,
+      child: Padding(padding: const EdgeInsets.only(bottom: 8), child: child),
     );
   }
 }
