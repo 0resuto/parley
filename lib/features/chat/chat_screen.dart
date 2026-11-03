@@ -1407,10 +1407,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showSpectrum)
-          const Padding(
-            key: Key('chatListeningIndicator'),
-            padding: EdgeInsets.fromLTRB(20, 8, 20, 2),
-            child: SttSpectrum(),
+          Semantics(
+            key: const Key('chatListeningIndicator'),
+            liveRegion: true,
+            excludeSemantics: true,
+            label: 'Listening. Speak now.',
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 2),
+              child: SttSpectrum(),
+            ),
           )
         else if (voiceReady && sttState.isProcessing)
           _sttStatus(context),

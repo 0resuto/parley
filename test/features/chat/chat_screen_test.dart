@@ -1182,6 +1182,7 @@ void main() {
     testWidgets('mic inserts partial and final text', (
       WidgetTester tester,
     ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
       await sttSettings.setEngine(SttEngineKind.moonshine);
       await pumpChatNoHook(tester);
       await tester.tap(find.byKey(const Key('chatMicButton')));
@@ -1191,6 +1192,12 @@ void main() {
       expect(stt.calls, contains('start'));
       expect(find.byKey(const Key('chatListeningIndicator')), findsOneWidget);
       expect(find.byKey(const Key('chatSpectrum')), findsOneWidget);
+      // Screen readers announce the recording state; the spectrum stays the
+      // only visible indicator.
+      expect(
+        tester.getSemantics(find.byKey(const Key('chatListeningIndicator'))),
+        matchesSemantics(label: 'Listening. Speak now.', isLiveRegion: true),
+      );
       stt.emitSpectrum(<double>[0.2, 0.8, 0.4]);
       await tester.pump();
 
@@ -1215,6 +1222,7 @@ void main() {
       expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
       expect(find.byKey(const Key('chatMicButton')), findsNothing);
       expect(find.byKey(const Key('chatProcessingIndicator')), findsNothing);
+      semantics.dispose();
     });
 
     testWidgets('mic stays hidden until the required model is ready', (
