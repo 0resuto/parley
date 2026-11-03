@@ -984,37 +984,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     UnitIndex index, {
     required bool canEdit,
   }) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
-        ),
-        child: GestureDetector(
-          onLongPressStart: (LongPressStartDetails details) =>
-              _showMessageActions(
-                message,
-                globalPosition: details.globalPosition,
-                canEdit: canEdit,
-                canRegenerate: false,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (canEdit)
+          _actionIcon(
+            key: Key('chatMessageEdit_${message.id}'),
+            icon: Icons.edit_outlined,
+            tooltip: 'Edit message',
+            onPressed: () => _editMessage(message),
+          ),
+        Flexible(
+          child: GestureDetector(
+            onLongPressStart: (LongPressStartDetails details) =>
+                _showUserMessageActions(
+                  message,
+                  globalPosition: details.globalPosition,
+                  canEdit: canEdit,
+                ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.82,
               ),
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: chatBubbleColor,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: MessageText(
-              rawText: message.content,
-              index: index,
-              style: Theme.of(context).textTheme.bodyLarge,
-              onWordTap: (surface, key, sentence) =>
-                  _openWordPopup(index, surface, key, sentence),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: chatBubbleColor,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: MessageText(
+                  rawText: message.content,
+                  index: index,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  onWordTap: (surface, key, sentence) =>
+                      _openWordPopup(index, surface, key, sentence),
+                ),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1040,101 +1054,80 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }) {
     final MessageSpeechState speech = ref.watch(messageSpeechProvider);
     final bool isPlaying = speech.playingId == message.id;
-    return GestureDetector(
-      onLongPressStart: (LongPressStartDetails details) => _showMessageActions(
-        message,
-        globalPosition: details.globalPosition,
-        canEdit: false,
-        canRegenerate: canRegenerate,
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: MessageText(
-                rawText: message.content,
-                index: index,
-                style: Theme.of(context).textTheme.bodyLarge,
-                onWordTap: (surface, key, sentence) =>
-                    _openWordPopup(index, surface, key, sentence),
-              ),
-            ),
-            IconButton(
-              key: Key(
-                isPlaying
-                    ? 'assistantStopButton_${message.id}'
-                    : 'assistantPlayButton_${message.id}',
-              ),
-              icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
-              tooltip: isPlaying ? 'Stop' : 'Play',
-              onPressed: () => _toggleSpeech(message),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: MessageText(
+            rawText: message.content,
+            index: index,
+            style: Theme.of(context).textTheme.bodyLarge,
+            onWordTap: (surface, key, sentence) =>
+                _openWordPopup(index, surface, key, sentence),
+          ),
         ),
+        _assistantActions(
+          message,
+          canRegenerate: canRegenerate,
+          isPlaying: isPlaying,
+        ),
+      ],
+    );
+  }
+
+  /// Playback, Copy and Regenerate under an assistant message.
+  Widget _assistantActions(
+    ChatMessage message, {
+    required bool canRegenerate,
+    required bool isPlaying,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _actionIcon(
+            key: Key('assistantSpeakButton_${message.id}'),
+            icon: isPlaying ? Icons.stop : Icons.volume_up,
+            tooltip: isPlaying ? 'Stop' : 'Play',
+            onPressed: () => _toggleSpeech(message),
+          ),
+          _actionIcon(
+            key: Key('chatMessageCopy_${message.id}'),
+            icon: Icons.copy_rounded,
+            tooltip: 'Copy',
+            onPressed: () => _copyMessage(message),
+          ),
+          if (canRegenerate)
+            _actionIcon(
+              key: Key('chatMessageRegenerate_${message.id}'),
+              icon: Icons.refresh_rounded,
+              tooltip: 'Regenerate reply',
+              onPressed: _regenerate,
+            ),
+        ],
       ),
     );
   }
 
-  Future<void> _showMessageActions(
+  /// Long-press menu for the user's own messages.
+  ///
+  /// User bubbles stay clean; Copy (and Edit for the newest message) live
+  /// behind a long press. The visible pencil beside the newest message is
+  /// the direct edit shortcut.
+  Future<void> _showUserMessageActions(
     ChatMessage message, {
     required Offset globalPosition,
     required bool canEdit,
-    required bool canRegenerate,
   }) async {
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final Offset local = overlay.globalToLocal(globalPosition);
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
-    final List<String> labels = <String>[
-      'Copy',
-      if (canEdit) 'Edit',
-      if (canRegenerate) 'Regenerate',
-    ];
-    double longestLabel = 0;
-    for (final String label in labels) {
-      final TextPainter painter = TextPainter(
-        text: TextSpan(text: label, style: theme.textTheme.bodyMedium),
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-        maxLines: 1,
-      )..layout();
-      longestLabel = painter.width > longestLabel
-          ? painter.width
-          : longestLabel;
-      painter.dispose();
-    }
-    final double availableWidth = MediaQuery.sizeOf(context).width - 16;
-    final double desiredWidth = 16 + 20 + 12 + longestLabel + 16;
-    final double menuWidth = desiredWidth > availableWidth
-        ? availableWidth
-        : desiredWidth;
-    PopupMenuItem<_MessageAction> item(
-      Key key,
-      IconData icon,
-      String label,
-      _MessageAction value,
-    ) {
-      return PopupMenuItem<_MessageAction>(
-        key: key,
-        value: value,
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: colors.onSurfaceVariant),
-            const SizedBox(width: 12),
-            Flexible(child: Text(label, style: theme.textTheme.bodyMedium)),
-          ],
-        ),
-      );
-    }
-
-    final _MessageAction? action = await showMenu<_MessageAction>(
+    final String? action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         local.dx,
@@ -1150,7 +1143,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
-      constraints: BoxConstraints.tightFor(width: menuWidth),
       menuPadding: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
       popUpAnimationStyle: const AnimationStyle(
@@ -1158,25 +1150,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         curve: Curves.easeOutCubic,
       ),
       items: [
-        item(
-          const Key('chatMessageCopy'),
-          Icons.copy,
-          'Copy',
-          _MessageAction.copy,
+        PopupMenuItem<String>(
+          key: const Key('chatMessageCopy'),
+          value: 'copy',
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.copy_rounded,
+                size: 20,
+                color: colors.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Text('Copy', style: theme.textTheme.bodyMedium),
+            ],
+          ),
         ),
         if (canEdit)
-          item(
-            const Key('chatMessageEdit'),
-            Icons.edit_outlined,
-            'Edit',
-            _MessageAction.edit,
-          ),
-        if (canRegenerate)
-          item(
-            const Key('chatMessageRegenerate'),
-            Icons.refresh,
-            'Regenerate',
-            _MessageAction.regenerate,
+          PopupMenuItem<String>(
+            key: const Key('chatMessageEdit'),
+            value: 'edit',
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.edit_outlined,
+                  size: 20,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Text('Edit', style: theme.textTheme.bodyMedium),
+              ],
+            ),
           ),
       ],
     );
@@ -1184,26 +1193,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return;
     }
     switch (action) {
+      case 'copy':
+        await _copyMessage(message);
+      case 'edit':
+        await _editMessage(message);
       case null:
         return;
-      case _MessageAction.copy:
-        await Clipboard.setData(ClipboardData(text: message.content));
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Copied to clipboard.')));
-        }
-      case _MessageAction.edit:
-        await _editMessage(message);
-      case _MessageAction.regenerate:
-        await ref
-            .read(chatControllerProvider(_conversationId!).notifier)
-            .regenerate();
-        if (mounted) {
-          await _refreshTitle();
-          _scrollToBottom();
-          await _maybeAutoPlay(_conversationId!);
-        }
+    }
+  }
+
+  Widget _actionIcon({
+    required Key key,
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return IconButton(
+      key: key,
+      icon: Icon(icon, size: 18),
+      tooltip: tooltip,
+      color: colors.onSurfaceVariant,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: onPressed,
+    );
+  }
+
+  Future<void> _copyMessage(ChatMessage message) async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: message.content));
+    if (mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Copied to clipboard.')),
+      );
+    }
+  }
+
+  Future<void> _regenerate() async {
+    final int? id = _conversationId;
+    if (id == null) {
+      return;
+    }
+    await ref.read(chatControllerProvider(id).notifier).regenerate();
+    if (mounted) {
+      await _refreshTitle();
+      _scrollToBottom();
+      await _maybeAutoPlay(id);
     }
   }
 
@@ -1562,8 +1601,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 }
-
-enum _MessageAction { copy, edit, regenerate }
 
 class _EditMessageDialog extends StatefulWidget {
   const _EditMessageDialog({required this.initialText});

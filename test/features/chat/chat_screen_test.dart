@@ -975,22 +975,30 @@ void main() {
         role: ChatRole.assistant,
         content: 'assistant reply',
       );
+      final List<ChatMessage> messages = await chats.listMessages(
+        conversation.id,
+      );
+      final ChatMessage userMessage = messages.firstWhere(
+        (ChatMessage message) => message.content == 'original message',
+      );
       llm.streamHandler = (_) => Stream.fromIterable([
         const TextDelta('fresh reply'),
         const StreamDone(),
       ]);
       await pumpChatNoHook(tester);
 
-      await tester.longPress(
-        find.descendant(
-          of: find.byKey(const Key('chatList')),
-          matching: find.text('original message'),
-        ),
+      expect(
+        find.byKey(Key('chatMessageCopy_${userMessage.id}')),
+        findsNothing,
       );
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
-      expect(find.byKey(const Key('chatMessageEdit')), findsOneWidget);
-      expect(find.byKey(const Key('chatMessageRegenerate')), findsNothing);
+      expect(
+        find.byKey(Key('chatMessageEdit_${userMessage.id}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('chatMessageRegenerate_${userMessage.id}')),
+        findsNothing,
+      );
 
       final List<MethodCall> clipboard = <MethodCall>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -1009,11 +1017,6 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const Key('chatMessageCopy')));
-      await tester.pumpAndSettle();
-      expect(clipboard.single.arguments['text'], 'original message');
-      expect(find.text('Copied to clipboard.'), findsOneWidget);
-
       await tester.longPress(
         find.descendant(
           of: find.byKey(const Key('chatList')),
@@ -1021,7 +1024,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('chatMessageEdit')));
+      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
+      expect(find.byKey(const Key('chatMessageEdit')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('chatMessageCopy')));
+      await tester.pumpAndSettle();
+      expect(clipboard.single.arguments['text'], 'original message');
+      expect(find.text('Copied to clipboard.'), findsOneWidget);
+
+      await tester.tap(find.byKey(Key('chatMessageEdit_${userMessage.id}')));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('chatEditMessageField')),
@@ -1050,24 +1061,36 @@ void main() {
         role: ChatRole.assistant,
         content: 'old reply',
       );
+      final List<ChatMessage> messages = await chats.listMessages(
+        conversation.id,
+      );
+      final ChatMessage assistant = messages.firstWhere(
+        (ChatMessage message) => message.content == 'old reply',
+      );
       llm.streamHandler = (_) => Stream.fromIterable([
         const TextDelta('new reply'),
         const StreamDone(),
       ]);
       await pumpChatNoHook(tester);
 
-      await tester.longPress(
-        find.descendant(
-          of: find.byKey(const Key('chatList')),
-          matching: find.text('old reply'),
-        ),
+      expect(
+        find.byKey(Key('assistantSpeakButton_${assistant.id}')),
+        findsOneWidget,
       );
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
-      expect(find.byKey(const Key('chatMessageRegenerate')), findsOneWidget);
-      expect(find.byKey(const Key('chatMessageEdit')), findsNothing);
+      expect(
+        find.byKey(Key('chatMessageCopy_${assistant.id}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('chatMessageRegenerate_${assistant.id}')),
+        findsOneWidget,
+      );
+      expect(find.byKey(Key('chatMessageEdit_${assistant.id}')), findsNothing);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('chatMessageRegenerate')));
+      await tester.tap(
+        find.byKey(Key('chatMessageRegenerate_${assistant.id}')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('new reply'), findsOneWidget);
@@ -1097,7 +1120,40 @@ void main() {
         role: ChatRole.assistant,
         content: 'second reply',
       );
+      final List<ChatMessage> messages = await chats.listMessages(
+        conversation.id,
+      );
+      final ChatMessage firstUser = messages.firstWhere(
+        (ChatMessage message) => message.content == 'first message',
+      );
+      final ChatMessage firstReply = messages.firstWhere(
+        (ChatMessage message) => message.content == 'first reply',
+      );
+      final ChatMessage secondUser = messages.firstWhere(
+        (ChatMessage message) => message.content == 'second message',
+      );
+      final ChatMessage secondReply = messages.firstWhere(
+        (ChatMessage message) => message.content == 'second reply',
+      );
       await pumpChatNoHook(tester);
+
+      expect(find.byKey(Key('chatMessageEdit_${firstUser.id}')), findsNothing);
+      expect(
+        find.byKey(Key('chatMessageCopy_${firstReply.id}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('chatMessageRegenerate_${firstReply.id}')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(Key('chatMessageEdit_${secondUser.id}')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('chatMessageRegenerate_${secondReply.id}')),
+        findsOneWidget,
+      );
 
       await tester.longPress(
         find.descendant(
@@ -1108,18 +1164,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
       expect(find.byKey(const Key('chatMessageEdit')), findsNothing);
-
-      await tester.tapAt(const Offset(8, 8));
-      await tester.pumpAndSettle();
-      await tester.longPress(
-        find.descendant(
-          of: find.byKey(const Key('chatList')),
-          matching: find.text('first reply'),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('chatMessageCopy')), findsOneWidget);
-      expect(find.byKey(const Key('chatMessageRegenerate')), findsNothing);
     });
   });
 

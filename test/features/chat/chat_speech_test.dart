@@ -175,16 +175,16 @@ void main() {
       // Visible text is stripped of markers.
       expect(find.text('Say heifer please'), findsOneWidget);
       expect(find.textContaining('[['), findsNothing);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.byIcon(Icons.volume_up));
       await tester.pumpAndSettle();
 
       // Play passes the message through TTS (service cleans markers).
       expect(tts.spokenTexts, hasLength(1));
       expect(cleanTtsText(tts.spokenTexts.single), 'Say heifer please');
       expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsNothing);
+      expect(find.byIcon(Icons.volume_up), findsNothing);
       // Visible text is unchanged by audio.
       expect(find.text('Say heifer please'), findsOneWidget);
       expect(find.textContaining('[['), findsNothing);
@@ -193,7 +193,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tts.stopCalls, 1);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsNothing);
       expect(find.text('Say heifer please'), findsOneWidget);
     });
@@ -206,7 +206,7 @@ void main() {
       await pumpChat(tester);
 
       await send(tester, 'hi');
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.byIcon(Icons.volume_up));
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.stop), findsOneWidget);
@@ -215,11 +215,11 @@ void main() {
       tts.emitSpeaking(false);
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsNothing);
 
       // Play works again after natural completion.
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.byIcon(Icons.volume_up));
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.stop), findsOneWidget);
@@ -238,22 +238,22 @@ void main() {
 
       expect(find.text('first reply'), findsOneWidget);
       expect(find.text('second reply'), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsNWidgets(2));
+      expect(find.byIcon(Icons.volume_up), findsNWidgets(2));
 
-      await tester.tap(find.byIcon(Icons.play_arrow).first);
+      await tester.tap(find.byIcon(Icons.volume_up).first);
       await tester.pumpAndSettle();
 
       expect(tts.spokenTexts, ['first reply']);
       expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.tap(find.byIcon(Icons.volume_up));
       await tester.pumpAndSettle();
 
       expect(tts.spokenTexts, ['first reply', 'second reply']);
       // Only one message plays at a time.
       expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
       // Both texts are still visible and unchanged.
       expect(find.text('first reply'), findsOneWidget);
       expect(find.text('second reply'), findsOneWidget);
@@ -272,7 +272,7 @@ void main() {
       expect(find.text('auto hello'), findsOneWidget);
       expect(tts.spokenTexts, ['auto hello']);
       expect(find.byIcon(Icons.stop), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsNothing);
+      expect(find.byIcon(Icons.volume_up), findsNothing);
     });
 
     testWidgets('auto-play off speaks nothing', (WidgetTester tester) async {
@@ -285,7 +285,7 @@ void main() {
 
       expect(find.text('quiet hello'), findsOneWidget);
       expect(tts.spokenTexts, isEmpty);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
       expect(find.byIcon(Icons.stop), findsNothing);
     });
 
@@ -324,17 +324,14 @@ void main() {
         (m) => m.role == ChatRole.assistant,
       );
       expect(
-        find.byKey(Key('assistantPlayButton_${assistant.id}')),
+        find.byKey(Key('assistantSpeakButton_${assistant.id}')),
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(Key('assistantPlayButton_${assistant.id}')));
+      await tester.tap(find.byKey(Key('assistantSpeakButton_${assistant.id}')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(Key('assistantStopButton_${assistant.id}')),
-        findsOneWidget,
-      );
+      expect(find.byIcon(Icons.stop), findsOneWidget);
       expect(tts.spokenTexts, ['keyed reply']);
     });
   });
