@@ -83,6 +83,17 @@ void main() {
       expect(find.text('All'), findsOneWidget);
     });
 
+    testWidgets('filter chips meet the minimum tap target', (
+      WidgetTester tester,
+    ) async {
+      await pumpDictionary(tester);
+
+      expect(
+        tester.getSize(find.widgetWithText(ChoiceChip, 'All')).height,
+        greaterThanOrEqualTo(44),
+      );
+    });
+
     testWidgets('shows the word count and n/N while filtering', (
       WidgetTester tester,
     ) async {

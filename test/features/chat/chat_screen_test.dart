@@ -313,6 +313,10 @@ void main() {
       expect(find.text('Start a conversation'), findsOneWidget);
       expect(find.byKey(const Key('chatStarterPrompt0')), findsOneWidget);
       expect(find.text("Let's practice ordering food"), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('chatStarterPrompt0'))).height,
+        greaterThanOrEqualTo(44),
+      );
 
       await tester.tap(find.byKey(const Key('chatStarterPrompt0')));
       await tester.pumpAndSettle();

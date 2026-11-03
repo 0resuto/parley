@@ -139,7 +139,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             ),
           ),
           SizedBox(
-            height: 42,
+            height: 48,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -359,8 +359,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant,
         ),
-        visualDensity: VisualDensity.compact,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         onSelected: (bool value) {
           setState(() {
             _filter = value ? status : null;
