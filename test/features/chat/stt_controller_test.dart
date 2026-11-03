@@ -28,6 +28,7 @@ class FakeStopTts implements TtsService {
 }
 
 void main() {
+  const Duration testSilenceTimeout = Duration(milliseconds: 60);
   late FakeSttService stt;
   late FakeStopTts tts;
   late MemorySttSettings settings;
@@ -41,6 +42,7 @@ void main() {
       overrides: [
         sttServiceProvider.overrideWithValue(stt),
         sttSettingsProvider.overrideWithValue(settings),
+        sttSilenceTimeoutProvider.overrideWithValue(testSilenceTimeout),
         ttsServiceProvider.overrideWithValue(tts),
       ],
     );
@@ -127,6 +129,71 @@ void main() {
     expect(state().phase, SttPhase.idle);
     expect(state().failure, isA<SttUnavailableFailure>());
     expect(state().failureSequence, 1);
+  });
+
+  test('auto-stops after a pause that follows speech', () async {
+    await controller().start();
+    await flush();
+
+    stt.emitLevel(0.6);
+    await flush();
+    stt.emitLevel(0.02);
+    await flush();
+    expect(stt.calls, isNot(contains('stop')));
+
+    await Future<void>.delayed(testSilenceTimeout * 2);
+    await flush();
+
+    expect(stt.calls.where((String call) => call == 'stop'), hasLength(1));
+    expect(state().phase, SttPhase.processing);
+  });
+
+  test('silence before speech does not stop the recording', () async {
+    await controller().start();
+    await flush();
+
+    stt.emitLevel(0.01);
+    await flush();
+    await Future<void>.delayed(testSilenceTimeout * 2);
+    await flush();
+
+    expect(stt.calls, isNot(contains('stop')));
+    expect(state().phase, SttPhase.listening);
+  });
+
+  test('speech again cancels the pending pause', () async {
+    await controller().start();
+    await flush();
+
+    stt.emitLevel(0.6);
+    await flush();
+    stt.emitLevel(0.02);
+    await flush();
+    await Future<void>.delayed(testSilenceTimeout ~/ 3);
+    stt.emitLevel(0.6);
+    await flush();
+
+    await Future<void>.delayed(testSilenceTimeout * 2);
+    await flush();
+
+    expect(stt.calls, isNot(contains('stop')));
+    expect(state().phase, SttPhase.listening);
+  });
+
+  test('auto-stop respects the setting', () async {
+    await settings.setAutoStop(false);
+    await controller().start();
+    await flush();
+
+    stt.emitLevel(0.6);
+    await flush();
+    stt.emitLevel(0.02);
+    await flush();
+    await Future<void>.delayed(testSilenceTimeout * 2);
+    await flush();
+
+    expect(stt.calls, isNot(contains('stop')));
+    expect(state().phase, SttPhase.listening);
   });
 
   test('toggle starts and stops', () async {

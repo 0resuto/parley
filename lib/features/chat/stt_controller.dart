@@ -2,12 +2,22 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/stt/stt_providers.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'package:parley/services/tts/tts_service.dart';
 
 /// Voice-input phase shown by the composer.
 enum SttPhase { idle, listening, processing }
+
+/// Level (0..1) at which a chunk counts as speech.
+///
+/// The level is normalized over -50..0 dBFS, so 0.25 is about -37 dBFS:
+/// clearly above typical room noise, below normal speech.
+const double sttSpeechLevel = 0.25;
+
+/// Pause after speech that stops the recording.
+const Duration sttSilenceTimeout = Duration(milliseconds: 1800);
 
 /// State of the voice-input controller.
 class SttState {
@@ -69,12 +79,15 @@ class SttState {
 /// the screen decides where the text goes.
 class SttController extends Notifier<SttState> {
   StreamSubscription<SttEvent>? _subscription;
+  Timer? _silenceTimer;
+  bool _speechHeard = false;
 
   @override
   SttState build() {
     final SttService service = ref.read(sttServiceProvider);
     _subscription = service.events.listen(_onEvent);
     ref.onDispose(() {
+      _cancelSilenceTimer();
       _subscription?.cancel();
       unawaited(service.cancel());
     });
@@ -86,6 +99,8 @@ class SttController extends Notifier<SttState> {
     if (state.phase != SttPhase.idle) {
       return;
     }
+    _cancelSilenceTimer();
+    _speechHeard = false;
     final SttService service = ref.read(sttServiceProvider);
     // Show the busy indicator while the engine initializes or loads its model;
     // SttStarted moves the phase to listening.
@@ -114,6 +129,7 @@ class SttController extends Notifier<SttState> {
 
   /// Stops recording and waits for the final result.
   Future<void> stop() async {
+    _cancelSilenceTimer();
     if (state.phase != SttPhase.listening) {
       return;
     }
@@ -127,6 +143,7 @@ class SttController extends Notifier<SttState> {
 
   /// Cancels recording and discards the current result.
   Future<void> cancel() async {
+    _cancelSilenceTimer();
     state = const SttState();
     try {
       await ref.read(sttServiceProvider).cancel();
@@ -147,16 +164,22 @@ class SttController extends Notifier<SttState> {
   void _onEvent(SttEvent event) {
     switch (event) {
       case SttStarted():
+        _speechHeard = false;
+        _cancelSilenceTimer();
         if (state.phase != SttPhase.listening) {
           state = state.copyWith(phase: SttPhase.listening);
         }
       case SttPartial(:final String text):
+        _speechHeard = true;
+        _cancelSilenceTimer();
         state = state.copyWith(phase: SttPhase.listening, partial: text);
-      case SttLevel():
+      case SttLevel(:final double level):
+        _onLevel(level);
       case SttAudioSpectrum():
         // Audio data drives the spectrum and level providers, not the state.
         break;
       case SttFinalResult(:final String text):
+        _cancelSilenceTimer();
         state = state.copyWith(
           phase: SttPhase.processing,
           partial: text,
@@ -165,10 +188,44 @@ class SttController extends Notifier<SttState> {
           clearFailure: true,
         );
       case SttStopped():
+        _cancelSilenceTimer();
         state = state.copyWith(phase: SttPhase.idle);
       case SttFailed(:final SttFailure failure):
+        _cancelSilenceTimer();
         _fail(failure);
     }
+  }
+
+  /// Tracks pauses so a recording can end without a second mic tap.
+  ///
+  /// Silence before the first speech is ignored: the user may need a moment
+  /// after tapping the mic. Only a pause after audible speech starts the
+  /// timer.
+  void _onLevel(double level) {
+    if (state.phase != SttPhase.listening) {
+      return;
+    }
+    if (level >= sttSpeechLevel) {
+      _speechHeard = true;
+      _cancelSilenceTimer();
+      return;
+    }
+    if (!_speechHeard ||
+        _silenceTimer != null ||
+        !ref.read(sttSettingsProvider).autoStop) {
+      return;
+    }
+    _silenceTimer = Timer(ref.read(sttSilenceTimeoutProvider), () {
+      _silenceTimer = null;
+      if (ref.mounted && state.phase == SttPhase.listening) {
+        unawaited(stop());
+      }
+    });
+  }
+
+  void _cancelSilenceTimer() {
+    _silenceTimer?.cancel();
+    _silenceTimer = null;
   }
 
   void _fail(SttFailure failure) {
@@ -187,6 +244,13 @@ class SttController extends Notifier<SttState> {
 final sttControllerProvider = NotifierProvider<SttController, SttState>(
   SttController.new,
 );
+
+/// How long a pause may last before the recording stops on its own.
+///
+/// A provider so tests can shorten the wait.
+final sttSilenceTimeoutProvider = Provider<Duration>((ref) {
+  return sttSilenceTimeout;
+});
 
 /// Live frequency bands for the composer spectrum.
 final sttSpectrumProvider = StreamProvider<List<double>>((ref) {

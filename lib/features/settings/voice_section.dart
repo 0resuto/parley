@@ -17,6 +17,7 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
   late bool _autoPlay;
   late double _speed;
   late bool _autoSend;
+  late bool _autoStop;
 
   @override
   void initState() {
@@ -26,6 +27,7 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
     _autoPlay = settings.autoPlay;
     _speed = settings.speechSpeed;
     _autoSend = sttSettings.autoSend;
+    _autoStop = sttSettings.autoStop;
   }
 
   @override
@@ -84,6 +86,20 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
               _autoSend = value;
             });
             ref.read(sttSettingsProvider).setAutoSend(value);
+          },
+        ),
+        SwitchListTile(
+          key: const Key('sttAutoStopSwitch'),
+          title: const Text('Stop after a pause'),
+          subtitle: const SettingsDescription(
+            'Stop recording on its own after a short silence.',
+          ),
+          value: _autoStop,
+          onChanged: (bool value) {
+            setState(() {
+              _autoStop = value;
+            });
+            ref.read(sttSettingsProvider).setAutoStop(value);
           },
         ),
         const SttModelsSection(),
