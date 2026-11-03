@@ -102,6 +102,11 @@ void main() {
         tester.getSize(find.widgetWithText(ChoiceChip, 'All')).height,
         greaterThanOrEqualTo(44),
       );
+
+      final Finder chipFinder = find.widgetWithText(ChoiceChip, 'All');
+      final ChoiceChip chip = tester.widget<ChoiceChip>(chipFinder);
+      final ThemeData theme = Theme.of(tester.element(chipFinder));
+      expect(chip.labelStyle?.fontSize, theme.textTheme.labelLarge?.fontSize);
     });
 
     testWidgets('word cards keep the screen gutter', (
@@ -161,6 +166,10 @@ void main() {
       await tester.enterText(find.byType(TextField), 'cow');
       await tester.pumpAndSettle();
       expect(find.text('1/2'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('dictionaryClearFilters'))).height,
+        greaterThanOrEqualTo(44),
+      );
     });
 
     testWidgets('uses the singular for a single word', (

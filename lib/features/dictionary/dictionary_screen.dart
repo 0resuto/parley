@@ -236,7 +236,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
               key: const Key('dictionaryClearFilters'),
               onPressed: _clearFilters,
               style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
               child: const Text('Clear'),
@@ -286,15 +285,12 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
         label: Text(label),
         selected: selected,
         showCheckmark: false,
-        selectedColor: colors.primaryContainer,
-        backgroundColor: colors.surfaceContainerHigh,
         side: BorderSide(
           color: selected
               ? colors.primary.withValues(alpha: 0.5)
               : colors.outlineVariant.withValues(alpha: 0.4),
         ),
-        labelStyle: TextStyle(
-          fontSize: 13,
+        labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
           fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant,
         ),
