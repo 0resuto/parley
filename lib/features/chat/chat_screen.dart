@@ -13,6 +13,7 @@ import 'package:parley/features/settings/settings_screen.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'package:parley/services/stt/stt_service.dart';
 import 'chat_controller.dart';
+import 'chat_session_store.dart';
 import 'conversations_screen.dart';
 import 'message_speech_controller.dart';
 import 'message_text.dart';
@@ -181,11 +182,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     try {
       final ChatRepository chats = ref.read(chatRepositoryProvider);
+      final ChatSessionStore session = ref.read(chatSessionStoreProvider);
       Conversation? chosen;
       final int? preset = widget.initialConversationId;
       if (preset != null) {
         chosen = await chats.getConversation(preset);
       }
+      chosen ??= await _lastOpened(chats, session);
       chosen ??= await _mostRecentOrNew(chats);
       if (!mounted) {
         return;
@@ -194,6 +197,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = chosen!.id;
         _title = chosen.title;
       });
+      unawaited(_rememberConversation(chosen.id));
       _watchConversation(chosen.id);
       await ref.read(chatControllerProvider(chosen.id).notifier).refresh();
       if (!mounted) {
@@ -215,6 +219,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _starting = false;
         _loadError = 'Something went wrong.';
       });
+    }
+  }
+
+  Future<Conversation?> _lastOpened(
+    ChatRepository chats,
+    ChatSessionStore session,
+  ) async {
+    final int? id = session.lastConversationId;
+    if (id == null) {
+      return null;
+    }
+    try {
+      return await chats.getConversation(id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _rememberConversation(int id) async {
+    try {
+      await ref.read(chatSessionStoreProvider).setLastConversationId(id);
+    } catch (_) {
+      // Remembering the session is best-effort.
     }
   }
 
@@ -277,6 +304,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = created.id;
         _title = created.title;
       });
+      unawaited(_rememberConversation(created.id));
       _input.clear();
       _watchConversation(created.id);
       await ref.read(chatControllerProvider(created.id).notifier).refresh();
@@ -512,6 +540,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = conversation.id;
         _title = conversation.title;
       });
+      unawaited(_rememberConversation(conversation.id));
       _input.clear();
       _watchConversation(conversation.id);
       await ref
@@ -549,6 +578,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = chosen.id;
         _title = chosen.title;
       });
+      unawaited(_rememberConversation(chosen.id));
       _input.clear();
       _watchConversation(chosen.id);
       await ref.read(chatControllerProvider(chosen.id).notifier).refresh();

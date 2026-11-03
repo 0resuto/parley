@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parley/app.dart';
 import 'package:parley/core/clock.dart';
+import 'package:parley/features/chat/chat_session_store.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/services/dictionary/dictionary_initializer.dart';
@@ -26,6 +27,7 @@ void main() async {
     keys,
   );
   final SttSettings sttSettings = SharedPreferencesSttSettings(prefs);
+  final ChatSessionStore chatSession = SharedPreferencesChatSessionStore(prefs);
   const Clock clock = SystemClock();
   final FileDocumentStore documents = await createFileDocumentStore(clock);
   await ensureDefaultDocuments(
@@ -44,6 +46,7 @@ void main() async {
         secureKeyStoreProvider.overrideWithValue(keys),
         settingsRepositoryProvider.overrideWithValue(settings),
         sttSettingsProvider.overrideWithValue(sttSettings),
+        chatSessionStoreProvider.overrideWithValue(chatSession),
         documentStoreProvider.overrideWithValue(documents),
         dictionaryServiceProvider.overrideWithValue(dictionary),
       ],

@@ -8,6 +8,7 @@ import 'package:parley/core/theme.dart';
 import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/chat/chat_screen.dart';
+import 'package:parley/features/chat/chat_session_store.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/settings/settings_providers.dart';
 import 'package:parley/features/settings/settings_screen.dart';
@@ -162,6 +163,7 @@ void main() {
   late FakeSttService stt;
   late MemorySttSettings sttSettings;
   late FakeTtsService tts;
+  late MemoryChatSessionStore session;
   final DateTime initial = DateTime.utc(2026, 4, 1, 12);
 
   setUp(() {
@@ -175,6 +177,7 @@ void main() {
     stt = FakeSttService();
     sttSettings = MemorySttSettings();
     tts = FakeTtsService();
+    session = MemoryChatSessionStore();
   });
 
   tearDown(() async {
@@ -196,6 +199,7 @@ void main() {
           llmClientProvider.overrideWithValue(llm),
           sttServiceProvider.overrideWithValue(stt),
           sttSettingsProvider.overrideWithValue(sttSettings),
+          chatSessionStoreProvider.overrideWithValue(session),
           ttsServiceProvider.overrideWithValue(tts),
         ],
         child: const MaterialApp(home: ChatScreen()),
@@ -219,6 +223,7 @@ void main() {
           llmClientProvider.overrideWithValue(llm),
           sttServiceProvider.overrideWithValue(stt),
           sttSettingsProvider.overrideWithValue(sttSettings),
+          chatSessionStoreProvider.overrideWithValue(session),
           ttsServiceProvider.overrideWithValue(tts),
           chatReplyHookProvider.overrideWithValue((_) async {}),
         ],
@@ -273,6 +278,46 @@ void main() {
       expect(find.text('No messages yet. Say hello!'), findsOneWidget);
       final TextField input = tester.widget(find.byKey(const Key('chatInput')));
       expect(input.controller?.text, 'draft');
+    });
+
+    testWidgets('reopens the last opened chat instead of the newest', (
+      WidgetTester tester,
+    ) async {
+      final Conversation first = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: first.id,
+        role: ChatRole.user,
+        content: 'First chat',
+      );
+      clock.advance(const Duration(minutes: 5));
+      final Conversation second = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: second.id,
+        role: ChatRole.user,
+        content: 'Second chat',
+      );
+      await session.setLastConversationId(first.id);
+
+      await pumpChatNoHook(tester);
+
+      expect(find.text('First chat'), findsWidgets);
+      expect(find.text('Second chat'), findsNothing);
+    });
+
+    testWidgets('falls back when the remembered chat is gone', (
+      WidgetTester tester,
+    ) async {
+      final Conversation only = await chats.createConversation();
+      await chats.addMessage(
+        conversationId: only.id,
+        role: ChatRole.user,
+        content: 'Only chat',
+      );
+      await session.setLastConversationId(999);
+
+      await pumpChatNoHook(tester);
+
+      expect(find.text('Only chat'), findsWidgets);
     });
 
     testWidgets('New chat after a message starts a fresh conversation', (
