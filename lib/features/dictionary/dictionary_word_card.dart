@@ -38,14 +38,6 @@ class DictionaryWordCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      elevation: 0,
-      color: colors.surfaceContainerLow,
-      surfaceTintColor: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.35)),
-      ),
       child: InkWell(
         onTap: onTap,
         child: Padding(

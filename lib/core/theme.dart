@@ -35,6 +35,13 @@ ThemeData buildParleyTheme() {
     borderRadius: BorderRadius.circular(18),
     borderSide: BorderSide(color: colorScheme.primary, width: 1.2),
   );
+  final BorderSide cardSide = BorderSide(
+    color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+  );
+  final RoundedRectangleBorder cardShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(20),
+    side: cardSide,
+  );
   return ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
@@ -46,6 +53,34 @@ ThemeData buildParleyTheme() {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
+    ),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: cardShape,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: colorScheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: colorScheme.surfaceContainerLow,
+      modalBackgroundColor: colorScheme.surfaceContainerLow,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      shape: const StadiumBorder(),
+      side: cardSide,
+      backgroundColor: colorScheme.surfaceContainerHigh,
+      selectedColor: colorScheme.primaryContainer,
+      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

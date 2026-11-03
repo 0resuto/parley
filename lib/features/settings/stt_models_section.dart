@@ -194,7 +194,6 @@ class _ModelCard extends StatelessWidget {
     final bool ready = status.isReady;
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

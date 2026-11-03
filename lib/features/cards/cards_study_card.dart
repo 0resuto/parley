@@ -41,10 +41,6 @@ class CardsStudyCard extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
     return Card(
       margin: EdgeInsets.zero,
-      elevation: 0,
-      color: colors.surfaceContainerLow,
-      surfaceTintColor: Colors.transparent,
-      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.35)),
