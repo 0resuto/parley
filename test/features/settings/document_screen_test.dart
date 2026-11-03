@@ -110,7 +110,10 @@ void main() {
       expect(find.text('Restore'), findsOneWidget);
     });
 
-    testWidgets('over-limit disables Save', (WidgetTester tester) async {
+    testWidgets('over-limit disables Save and says why', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
       final MemoryDocumentStore store = MemoryDocumentStore(
         rules: 'short',
         clock: FakeClock(DateTime.utc(2026, 1, 10, 12)),
@@ -129,11 +132,22 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('6001 / 6000'), findsOneWidget);
+      // The limit is not signalled by colour alone.
+      expect(find.text('Too long by 1 character'), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(
+        tester.getSemantics(find.byKey(const Key('documentCounter'))),
+        matchesSemantics(
+          label: '6001 / 6000. Too long by 1 character. Saving is disabled.',
+          isLiveRegion: true,
+        ),
+      );
       final FilledButton save = tester.widget(
         find.byKey(const Key('documentSaveButton')),
       );
       expect(save.onPressed, isNull);
       expect(await store.read(DocumentKind.rules), 'short');
+      semantics.dispose();
     });
 
     testWidgets('restore from history brings back the old text', (

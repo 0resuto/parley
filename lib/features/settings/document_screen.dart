@@ -289,11 +289,42 @@ class _Counter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     final bool over = used > limit;
-    return Text(
-      '$used / $limit',
-      style: TextStyle(
-        color: over ? Theme.of(context).colorScheme.error : null,
+    final int overBy = used - limit;
+    final String count = '$used / $limit';
+    return Semantics(
+      key: const Key('documentCounter'),
+      liveRegion: true,
+      excludeSemantics: true,
+      label: over
+          ? '$count. Too long by $overBy '
+                '${overBy == 1 ? 'character' : 'characters'}. '
+                'Saving is disabled.'
+          : '$used of $limit characters used.',
+      child: Row(
+        children: [
+          if (over) ...[
+            Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            count,
+            style: TextStyle(color: over ? theme.colorScheme.error : null),
+          ),
+          if (over) ...[
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Too long by $overBy '
+                '${overBy == 1 ? 'character' : 'characters'}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
