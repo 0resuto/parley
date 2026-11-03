@@ -282,7 +282,7 @@ void main() {
       ]);
       await pumpChat(tester);
 
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
       // New conversation: title and AppBar action share the text.
       expect(find.text('New chat'), findsNWidgets(2));
       expect(find.byKey(const Key('chatInput')), findsOneWidget);
@@ -301,12 +301,35 @@ void main() {
       expect(input.controller?.text ?? '', isEmpty);
     });
 
+    testWidgets('empty chat offers starters that send a message', (
+      WidgetTester tester,
+    ) async {
+      llm.streamHandler = (_) => Stream.fromIterable([
+        const TextDelta('Nice to meet you!'),
+        const StreamDone(),
+      ]);
+      await pumpChat(tester);
+
+      expect(find.text('Start a conversation'), findsOneWidget);
+      expect(find.byKey(const Key('chatStarterPrompt0')), findsOneWidget);
+      expect(find.text("Let's practice ordering food"), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('chatStarterPrompt0')));
+      await tester.pumpAndSettle();
+
+      expect(llm.streamCalls, hasLength(1));
+      expect(llm.streamCalls.single.last.content, 'Tell me about your day.');
+      expect(find.text('Tell me about your day.'), findsWidgets);
+      expect(find.text('Nice to meet you!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsNothing);
+    });
+
     testWidgets('New chat in an empty chat does not create a duplicate', (
       WidgetTester tester,
     ) async {
       await pumpChatNoHook(tester);
       expect(await chats.listConversations(), hasLength(1));
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
 
       // The tap is a no-op: the empty chat already is a new chat, and the
       // typed draft survives (PLAN 21.1).
@@ -315,7 +338,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(await chats.listConversations(), hasLength(1));
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
       final TextField input = tester.widget(find.byKey(const Key('chatInput')));
       expect(input.controller?.text, 'draft');
     });
@@ -376,7 +399,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(await chats.listConversations(), hasLength(2));
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
     });
 
     testWidgets('Stop button during streaming keeps partial', (
@@ -737,7 +760,7 @@ void main() {
 
       await pumpChatNoHook(tester);
       // The most recent conversation (Beta, empty) is open.
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
 
       // Pick Alpha in history (its title became the first message): the
       // lookup hangs.
@@ -749,13 +772,13 @@ void main() {
       // While Alpha is still loading, the user creates a new chat.
       await tester.tap(find.byKey(const Key('chatNewChatButton')));
       await tester.pumpAndSettle();
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
 
       // The slow Alpha switch finishes last and must be ignored (A-35).
       gated.gate!.complete();
       await tester.pumpAndSettle();
 
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
       expect(find.text('alpha msg'), findsNothing);
     });
 
@@ -900,7 +923,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Something went wrong.'), findsNothing);
-      expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+      expect(find.text('Start a conversation'), findsOneWidget);
     });
 
     testWidgets('composer floats over the chat list', (

@@ -48,6 +48,31 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// First messages offered in an empty chat.
+const List<({String label, String message, IconData icon})> chatStarterPrompts =
+    [
+      (
+        label: 'Tell me about your day',
+        message: 'Tell me about your day.',
+        icon: Icons.wb_sunny_outlined,
+      ),
+      (
+        label: "Let's practice ordering food",
+        message: "Let's practice ordering food.",
+        icon: Icons.restaurant_outlined,
+      ),
+      (
+        label: 'Teach me travel phrases',
+        message: 'Teach me useful travel phrases.',
+        icon: Icons.flight_takeoff,
+      ),
+      (
+        label: 'Correct my English',
+        message: 'Correct my English as we chat.',
+        icon: Icons.spellcheck,
+      ),
+    ];
+
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   late final TextEditingController _input;
@@ -366,6 +391,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     await _refreshTitle();
     _scrollToBottom();
     await _maybeAutoPlay(id);
+  }
+
+  /// Sends [message] straight from an empty-chat suggestion.
+  Future<void> _startWithPrompt(String message) async {
+    if (_conversationId == null) {
+      return;
+    }
+    _input.text = message;
+    _input.selection = TextSelection.collapsed(offset: message.length);
+    await _send();
   }
 
   Future<void> _stop() async {
@@ -807,6 +842,69 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+  Widget _emptyChat(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer.withValues(alpha: 0.45),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.forum_outlined,
+                  size: 30,
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Start a conversation',
+                key: const Key('chatEmptyTitle'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Pick a starter or write your own message.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  for (int i = 0; i < chatStarterPrompts.length; i++)
+                    _StarterPromptButton(
+                      key: Key('chatStarterPrompt$i'),
+                      prompt: chatStarterPrompts[i],
+                      onPressed: () =>
+                          _startWithPrompt(chatStarterPrompts[i].message),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildList(BuildContext context, ChatState state, UnitIndex index) {
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -814,7 +912,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final List<ChatMessage> messages = state.messages;
     final bool streaming = state.isStreaming;
     if (messages.isEmpty && !streaming) {
-      return const Center(child: Text('No messages yet. Say hello!'));
+      return _emptyChat(context);
     }
     final int extra = streaming ? 1 : 0;
     int lastUserIndex = -1;
@@ -1478,7 +1576,6 @@ class _EditMessageDialog extends StatefulWidget {
 
 class _EditMessageDialogState extends State<_EditMessageDialog> {
   late final TextEditingController _controller;
-
   @override
   void initState() {
     super.initState();
@@ -1521,6 +1618,48 @@ class _EditMessageDialogState extends State<_EditMessageDialog> {
           child: const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+/// Soft pill-shaped starter suggestion in the empty chat.
+class _StarterPromptButton extends StatelessWidget {
+  const _StarterPromptButton({
+    super.key,
+    required this.prompt,
+    required this.onPressed,
+  });
+
+  final ({String label, String message, IconData icon}) prompt;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.35)),
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(prompt.icon, size: 18, color: colors.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(prompt.label, style: theme.textTheme.labelLarge),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

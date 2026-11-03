@@ -97,7 +97,7 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+    expect(find.text('Start a conversation'), findsOneWidget);
 
     await tester.tap(find.text('Cards'));
     await tester.pumpAndSettle();
@@ -118,7 +118,7 @@ void main() {
 
     await tester.tap(find.text('Chat'));
     await tester.pumpAndSettle();
-    expect(find.text('No messages yet. Say hello!'), findsOneWidget);
+    expect(find.text('Start a conversation'), findsOneWidget);
   });
 
   testWidgets('switching tabs drops composer focus', (
