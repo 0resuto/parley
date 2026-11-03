@@ -61,6 +61,23 @@ void main() {
     });
   }
 
+  SttModelsState readyState() {
+    return const SttModelsState(<SttEngineKind, SttModelStatus>{
+      SttEngineKind.moonshine: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
+      SttEngineKind.whisper: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
+    });
+  }
+
+  ListTile tile(WidgetTester tester, SttEngineKind engine) {
+    return tester.widget<ListTile>(find.byKey(Key('sttEngine_${engine.id}')));
+  }
+
   Future<FakeSttModelsController> pumpSection(
     WidgetTester tester,
     SttModelsState initial, {
@@ -87,6 +104,76 @@ void main() {
     await tester.pumpAndSettle();
     return controller;
   }
+
+  testWidgets('Whisper is selected and Moonshine is locked until downloaded', (
+    WidgetTester tester,
+  ) async {
+    final MemorySttSettings settings = MemorySttSettings();
+    await pumpSection(tester, emptyState(), settings: settings);
+
+    expect(tile(tester, SttEngineKind.whisper).selected, isTrue);
+    expect(tile(tester, SttEngineKind.whisper).enabled, isTrue);
+    expect(tile(tester, SttEngineKind.moonshine).enabled, isFalse);
+    expect(find.byKey(const Key('sttDownload_moonshine')), findsOneWidget);
+    expect(find.text('Required'), findsOneWidget);
+  });
+
+  testWidgets('a ready Moonshine model can be selected', (
+    WidgetTester tester,
+  ) async {
+    final MemorySttSettings settings = MemorySttSettings();
+    await pumpSection(tester, readyState(), settings: settings);
+
+    expect(tile(tester, SttEngineKind.moonshine).enabled, isTrue);
+    await tester.tap(find.byKey(const Key('sttEngine_moonshine')));
+    await tester.pumpAndSettle();
+
+    expect(settings.engine, SttEngineKind.moonshine);
+    expect(tile(tester, SttEngineKind.moonshine).selected, isTrue);
+    expect(tile(tester, SttEngineKind.whisper).selected, isFalse);
+  });
+
+  testWidgets('Whisper can be selected again after Moonshine', (
+    WidgetTester tester,
+  ) async {
+    final MemorySttSettings settings = MemorySttSettings(
+      engine: SttEngineKind.moonshine,
+    );
+    await pumpSection(tester, readyState(), settings: settings);
+
+    await tester.tap(find.byKey(const Key('sttEngine_whisper')));
+    await tester.pumpAndSettle();
+
+    expect(settings.engine, SttEngineKind.whisper);
+    expect(tile(tester, SttEngineKind.whisper).selected, isTrue);
+    expect(tile(tester, SttEngineKind.moonshine).selected, isFalse);
+  });
+
+  testWidgets('a downloading model shows progress and stays disabled', (
+    WidgetTester tester,
+  ) async {
+    const SttModelsState state = SttModelsState(<SttEngineKind, SttModelStatus>{
+      SttEngineKind.moonshine: SttModelStatus(
+        phase: SttModelPhase.downloading,
+        progress: 0.4,
+      ),
+      SttEngineKind.whisper: SttModelStatus(
+        phase: SttModelPhase.ready,
+        progress: 1,
+      ),
+    });
+    await pumpSection(tester, state);
+
+    expect(tile(tester, SttEngineKind.moonshine).enabled, isFalse);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(
+            find.byKey(const Key('sttModelProgress_moonshine')),
+          )
+          .value,
+      0.4,
+    );
+  });
 
   testWidgets('download asks for confirmation and marks the model ready', (
     WidgetTester tester,

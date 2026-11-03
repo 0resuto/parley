@@ -8,41 +8,60 @@ import 'stt_engine_controller.dart';
 import 'stt_models_controller.dart';
 import 'settings_section.dart';
 
-/// Offline speech-model downloads (SPEC 5.10).
+/// Offline speech-model selection and downloads (SPEC 5.10).
 class SttModelsSection extends ConsumerWidget {
   const SttModelsSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final SttModelsState state = ref.watch(sttModelsControllerProvider);
+    final SttEngineKind selected = ref.watch(sttEngineProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Text(
-            'Offline models',
+            'Recognition model',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Whisper Tiny.en is downloaded automatically on first launch. '
-            'Moonshine is optional and faster.',
+          child: SettingsDescription(
+            'Whisper Tiny.en is required and downloads automatically on first '
+            'launch. Moonshine is optional and faster.',
           ),
         ),
         const SizedBox(height: 4),
-        for (final SttModel model in sttModels)
-          _ModelCard(
-            model: model,
-            status: state.statusOf(model.engine),
-            anotherBusy: state.isBusy && !state.statusOf(model.engine).isBusy,
-            onDownload: () => _download(context, ref, model),
-            onCancel: () =>
-                ref.read(sttModelsControllerProvider.notifier).cancel(),
-            onDelete: () => _delete(context, ref, model),
+        RadioGroup<SttEngineKind>(
+          groupValue: selected,
+          onChanged: (SttEngineKind? engine) {
+            if (engine == null || !state.statusOf(engine).isReady) {
+              return;
+            }
+            ref.read(sttEngineProvider.notifier).select(engine);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final SttModel model in sttModels)
+                _ModelCard(
+                  model: model,
+                  status: state.statusOf(model.engine),
+                  selectedEngine: selected,
+                  anotherBusy:
+                      state.isBusy && !state.statusOf(model.engine).isBusy,
+                  onSelect: () =>
+                      ref.read(sttEngineProvider.notifier).select(model.engine),
+                  onDownload: () => _download(context, ref, model),
+                  onCancel: () =>
+                      ref.read(sttModelsControllerProvider.notifier).cancel(),
+                  onDelete: () => _delete(context, ref, model),
+                ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -151,7 +170,9 @@ class _ModelCard extends StatelessWidget {
   const _ModelCard({
     required this.model,
     required this.status,
+    required this.selectedEngine,
     required this.anotherBusy,
+    required this.onSelect,
     required this.onDownload,
     required this.onCancel,
     required this.onDelete,
@@ -159,96 +180,113 @@ class _ModelCard extends StatelessWidget {
 
   final SttModel model;
   final SttModelStatus status;
+  final SttEngineKind selectedEngine;
   final bool anotherBusy;
+  final VoidCallback onSelect;
   final VoidCallback onDownload;
   final VoidCallback onCancel;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
     final String id = model.engine.id;
+    final bool ready = status.isReady;
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            key: Key('sttEngine_$id'),
+            leading: Radio<SttEngineKind>(value: model.engine, enabled: ready),
+            title: Text(model.name),
+            subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        model.name,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 2),
-                      SettingsDescription(
-                        '${model.sizeLabel} · ${model.description}',
-                      ),
-                      if (status.phase == SttModelPhase.ready)
-                        Text(
-                          model.required ? 'Required' : 'Downloaded',
-                          key: Key('sttModelStatus_$id'),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                    ],
-                  ),
+                SettingsDescription(
+                  '${model.sizeLabel} · ${model.description}',
                 ),
-                _action(context, id),
+                if (status.phase == SttModelPhase.ready)
+                  Text(
+                    model.required ? 'Required' : 'Downloaded',
+                    key: Key('sttModelStatus_$id'),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colors.primary),
+                  ),
               ],
             ),
-            if (status.phase == SttModelPhase.downloading) ...[
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                key: Key('sttModelProgress_$id'),
-                value: status.progress,
-              ),
-              Row(
-                children: [
-                  Text('${(status.progress * 100).round()}%'),
-                  const Spacer(),
-                  if (!model.required)
-                    TextButton(
-                      key: Key('sttCancel_$id'),
-                      onPressed: onCancel,
-                      child: const Text('Cancel'),
-                    ),
-                ],
-              ),
-            ] else if (status.phase == SttModelPhase.verifying ||
-                status.phase == SttModelPhase.extracting) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    status.phase == SttModelPhase.verifying
-                        ? 'Checking the download...'
-                        : 'Unpacking the model...',
-                  ),
-                ],
-              ),
-            ] else if (status.phase == SttModelPhase.failed) ...[
-              const SizedBox(height: 8),
-              Text(
-                status.error ?? 'The model download failed.',
-                key: Key('sttModelError_$id'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+            trailing: _action(context, id),
+            selected: selectedEngine == model.engine,
+            enabled: ready,
+            onTap: ready ? onSelect : null,
+          ),
+          if (status.phase == SttModelPhase.downloading) _downloadProgress(id),
+          if (status.phase == SttModelPhase.verifying ||
+              status.phase == SttModelPhase.extracting)
+            _preparing(),
+          if (status.phase == SttModelPhase.failed) _failure(context, id),
+        ],
+      ),
+    );
+  }
+
+  Widget _downloadProgress(String id) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        children: [
+          LinearProgressIndicator(
+            key: Key('sttModelProgress_$id'),
+            value: status.progress,
+          ),
+          Row(
+            children: [
+              Text('${(status.progress * 100).round()}%'),
+              const Spacer(),
+              if (!model.required)
+                TextButton(
+                  key: Key('sttCancel_$id'),
+                  onPressed: onCancel,
+                  child: const Text('Cancel'),
+                ),
             ],
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _preparing() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status.phase == SttModelPhase.verifying
+                ? 'Checking the download...'
+                : 'Unpacking the model...',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _failure(BuildContext context, String id) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Text(
+        status.error ?? 'The model download failed.',
+        key: Key('sttModelError_$id'),
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
       ),
     );
   }

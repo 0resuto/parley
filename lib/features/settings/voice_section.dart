@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_providers.dart';
 import 'settings_section.dart';
-import 'stt_engine_section.dart';
 import 'stt_models_section.dart';
 
 /// Voice settings (SPEC 5.10): auto-play replies, speech speed and voice input.
@@ -87,7 +86,6 @@ class _VoiceSectionState extends ConsumerState<VoiceSection> {
             ref.read(sttSettingsProvider).setAutoSend(value);
           },
         ),
-        const SttEngineSection(),
         const SttModelsSection(),
       ],
     );
