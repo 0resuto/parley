@@ -21,9 +21,14 @@ import '../../helpers/fake_unit_repository.dart';
 class FakeShareService implements ShareService {
   String? fileName;
   String? content;
+  Completer<void>? gate;
 
   @override
   Future<void> shareJsonFile(String name, String json) async {
+    final Completer<void>? blocker = gate;
+    if (blocker != null) {
+      await blocker.future;
+    }
     fileName = name;
     content = json;
   }
@@ -144,6 +149,36 @@ void main() {
           jsonDecode(share.content!) as Map<String, dynamic>;
       expect(doc['format'], 'parley-export');
       expect((doc['units'] as List), hasLength(1));
+    });
+
+    testWidgets('export shows progress on its own tile', (
+      WidgetTester tester,
+    ) async {
+      share.gate = Completer<void>();
+      await pumpSettings(tester);
+
+      await tester.ensureVisible(find.byKey(const Key('exportJsonTile')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('exportJsonTile')));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('exportJsonTile')),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+
+      share.gate!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('exportJsonTile')),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('import adds units and shows a summary', (

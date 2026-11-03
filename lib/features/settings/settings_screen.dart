@@ -14,6 +14,8 @@ import 'translation_section.dart';
 import 'tutor_section.dart';
 import 'voice_section.dart';
 
+enum _DataAction { export, importJson, importCsv }
+
 /// Settings screen (SPEC 5.10).
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -26,9 +28,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Guards the data actions from a second start (A-15).
   bool _busy = false;
 
-  /// True only while the actual export/import work runs; drives the
-  /// progress indicator (the guard also covers pickers and dialogs).
-  bool _working = false;
+  /// Which data action is currently running, for its own progress row.
+  _DataAction? _activeAction;
 
   Future<void> _export() async {
     if (_busy) {
@@ -36,7 +37,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     setState(() {
       _busy = true;
-      _working = true;
+      _activeAction = _DataAction.export;
     });
     try {
       final ExportService service = ref.read(exportServiceProvider);
@@ -53,7 +54,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _working = false;
+          _activeAction = null;
         });
       }
     }
@@ -83,7 +84,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         final ImportOptions? options = await _askImportOptions();
         if (options != null && mounted) {
           setState(() {
-            _working = true;
+            _activeAction = _DataAction.importJson;
           });
           try {
             summary = await ref
@@ -100,7 +101,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _working = false;
+          _activeAction = null;
         });
       }
     }
@@ -161,7 +162,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
       if (!pickFailed && picked != null && mounted) {
         setState(() {
-          _working = true;
+          _activeAction = _DataAction.importCsv;
         });
         try {
           summary = await ref
@@ -175,7 +176,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _working = false;
+          _activeAction = null;
         });
       }
     }
@@ -209,6 +210,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Import failed.')));
     }
+  }
+
+  Widget? _dataTrailing(_DataAction action) {
+    if (!_busy || _activeAction != action) {
+      return null;
+    }
+    return const SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
   }
 
   Future<ImportOptions?> _askImportOptions() {
@@ -297,34 +309,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   ListTile(
+                    key: const Key('exportJsonTile'),
                     leading: const Icon(Icons.upload),
                     title: const Text('Export JSON'),
                     subtitle: const SettingsDescription(
                       'Share a backup of your dictionary',
                     ),
+                    trailing: _dataTrailing(_DataAction.export),
                     onTap: _busy ? null : _export,
                   ),
                   ListTile(
+                    key: const Key('importJsonTile'),
                     leading: const Icon(Icons.download),
                     title: const Text('Import JSON'),
                     subtitle: const SettingsDescription(
                       'Restore from a backup file',
                     ),
+                    trailing: _dataTrailing(_DataAction.importJson),
                     onTap: _busy ? null : _import,
                   ),
                   ListTile(
+                    key: const Key('importCsvTile'),
                     leading: const Icon(Icons.table_chart),
                     title: const Text('Import CSV'),
                     subtitle: const SettingsDescription(
                       'Add words from a CSV file',
                     ),
+                    trailing: _dataTrailing(_DataAction.importCsv),
                     onTap: _busy ? null : _importCsv,
                   ),
                 ],
               ),
             ),
             const SettingsSection(child: AboutSection()),
-            if (_working) const LinearProgressIndicator(),
           ],
         ),
       ),
