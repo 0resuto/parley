@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/services/documents/document_store.dart';
 import 'settings_providers.dart';
 
@@ -186,18 +187,9 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(_title)),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingStateView()
           : _loadFailed
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Something went wrong.'),
-                  const SizedBox(height: 8),
-                  FilledButton(onPressed: _load, child: const Text('Retry')),
-                ],
-              ),
-            )
+          ? ErrorStateView(onRetry: _load)
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [

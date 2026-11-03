@@ -298,10 +298,18 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
           ),
         ),
         dictionaries.when(
-          loading: () => const SizedBox.shrink(),
-          error: (_, _) => const ListTile(
-            key: Key('dictionariesError'),
-            title: Text('Your dictionaries could not be loaded.'),
+          loading: () => const ListTile(
+            leading: Icon(Icons.hourglass_empty),
+            title: Text('Loading dictionaries...'),
+          ),
+          error: (_, _) => ListTile(
+            key: const Key('dictionariesError'),
+            title: const Text('Your dictionaries could not be loaded.'),
+            trailing: TextButton(
+              key: const Key('dictionariesRetry'),
+              onPressed: () => ref.invalidate(userDictionariesProvider),
+              child: const Text('Retry'),
+            ),
           ),
           data: (List<UserDictionary> list) {
             if (list.isEmpty) {

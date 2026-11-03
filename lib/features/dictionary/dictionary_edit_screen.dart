@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/unit_repository.dart';
 import 'dictionary_providers.dart';
@@ -307,20 +308,27 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const LoadingStateView(),
       );
     }
     if (_loadFailed) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: const Center(child: Text('Something went wrong.')),
+        body: ErrorStateView(
+          onRetry: _load,
+          retryKey: const Key('dictionaryEditRetry'),
+        ),
       );
     }
     final Unit? unit = _unit;
     if (_notFound || unit == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Edit word')),
-        body: const Center(child: Text('Word not found.')),
+        body: const EmptyStateView(
+          icon: Icons.search_off,
+          title: 'Word not found.',
+          message: 'It may have been deleted.',
+        ),
       );
     }
     return Scaffold(

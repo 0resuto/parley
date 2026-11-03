@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:parley/core/clock.dart';
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/unit_repository.dart';
 import 'dictionary_edit_screen.dart';
@@ -152,7 +153,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                       return _errorState();
                     }
                     if (!snap.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const LoadingStateView();
                     }
                     final List<Unit> units = snap.data!.units;
                     final int total = snap.data!.total;
@@ -244,81 +245,33 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
   }
 
   Widget _emptyState({required bool isFiltering}) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 96),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHigh,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isFiltering ? Icons.search_off : Icons.auto_stories_outlined,
-                size: 30,
-                color: colors.onSurfaceVariant,
-              ),
+    return EmptyStateView(
+      icon: isFiltering ? Icons.search_off : Icons.auto_stories_outlined,
+      title: isFiltering ? 'No words found' : 'Your dictionary is empty',
+      message: isFiltering
+          ? 'Try a different search or filter.'
+          : 'Add your first word to start building vocabulary.',
+      action: isFiltering
+          ? TextButton(
+              onPressed: _clearFilters,
+              child: const Text('Clear filters'),
+            )
+          : FilledButton.icon(
+              onPressed: _openAdd,
+              icon: const Icon(Icons.add),
+              label: const Text('Add word'),
             ),
-            const SizedBox(height: 16),
-            Text(
-              isFiltering ? 'No words found' : 'Your dictionary is empty',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isFiltering
-                  ? 'Try a different search or filter.'
-                  : 'Add your first word to start building vocabulary.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            if (isFiltering)
-              TextButton(
-                onPressed: _clearFilters,
-                child: const Text('Clear filters'),
-              )
-            else
-              FilledButton.icon(
-                onPressed: _openAdd,
-                icon: const Icon(Icons.add),
-                label: const Text('Add word'),
-              ),
-          ],
-        ),
-      ),
     );
   }
 
   Widget _errorState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Something went wrong.'),
-          const SizedBox(height: 8),
-          TextButton(
-            key: const Key('dictionaryRetry'),
-            onPressed: () {
-              setState(() {
-                _reload++;
-              });
-            },
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
+    return ErrorStateView(
+      onRetry: () {
+        setState(() {
+          _reload++;
+        });
+      },
+      retryKey: const Key('dictionaryRetry'),
     );
   }
 

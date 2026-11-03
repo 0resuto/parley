@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:parley/core/failures.dart';
 import 'package:parley/core/theme.dart';
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/models/unit.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
@@ -756,21 +757,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return Scaffold(
         appBar: AppBar(title: const Text('Chat')),
         body: _loadError != null
-            ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Something went wrong.'),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      key: const Key('chatLoadRetryButton'),
-                      onPressed: _start,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
+            ? ErrorStateView(
+                onRetry: _start,
+                retryKey: const Key('chatLoadRetryButton'),
               )
-            : const Center(child: CircularProgressIndicator()),
+            : const LoadingStateView(),
       );
     }
     final int id = _conversationId!;
@@ -907,7 +898,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildList(BuildContext context, ChatState state, UnitIndex index) {
     if (state.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingStateView();
     }
     final List<ChatMessage> messages = state.messages;
     final bool streaming = state.isStreaming;

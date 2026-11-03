@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 
@@ -168,26 +169,26 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingStateView();
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Something went wrong.'),
-            const SizedBox(height: 8),
-            FilledButton(
-              key: const Key('conversationsRetryButton'),
-              onPressed: _load,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+      return ErrorStateView(
+        onRetry: _load,
+        retryKey: const Key('conversationsRetryButton'),
       );
     }
     if (_conversations.isEmpty) {
-      return const Center(child: Text('No conversations yet.'));
+      return EmptyStateView(
+        icon: Icons.forum_outlined,
+        title: 'No conversations yet.',
+        message: 'Start a chat to practice.',
+        action: FilledButton.icon(
+          key: const Key('historyEmptyNewChat'),
+          onPressed: _newChat,
+          icon: const Icon(Icons.add),
+          label: const Text('New chat'),
+        ),
+      );
     }
     return ListView.builder(
       itemCount: _conversations.length,

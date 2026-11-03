@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:parley/core/ui/state_views.dart';
 import 'package:parley/data/models/unit.dart';
 import 'cards_controller.dart';
 import 'cards_study_card.dart';
@@ -53,11 +54,14 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
       body: Builder(
         builder: (BuildContext context) {
           if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingStateView();
           }
           final String? error = state.error;
           if (error != null) {
-            return _errorState(error, controller);
+            return ErrorStateView(
+              onRetry: controller.refresh,
+              retryKey: const Key('cardsRetryButton'),
+            );
           }
           final Unit? current = state.current;
           if (current == null) {
@@ -222,29 +226,6 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
               onPressed: controller.refresh,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Check again'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _errorState(String error, CardsController controller) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 40, color: colors.error),
-            const SizedBox(height: 12),
-            Text(error, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton(
-              key: const Key('cardsRetryButton'),
-              onPressed: controller.refresh,
-              child: const Text('Retry'),
             ),
           ],
         ),
