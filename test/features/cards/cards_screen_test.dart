@@ -59,6 +59,21 @@ class StubReviewService extends ReviewService {
     // (T-18) Go through the real logic so the review row is written.
     return super.rate(unitId, rating, source, at: at);
   }
+
+  @override
+  Future<ReviewResult?> rateWithUndo(
+    int unitId,
+    Rating rating,
+    ReviewSource source, {
+    DateTime? at,
+  }) async {
+    rateCalls++;
+    final Completer<void>? pending = gate;
+    if (pending != null) {
+      await pending.future;
+    }
+    return super.rateWithUndo(unitId, rating, source, at: at);
+  }
 }
 
 /// [UnitRepository] double whose queue load always fails (PLAN 9.1).
@@ -273,6 +288,29 @@ void main() {
       expect(rows.single.unitId, cow.id);
       expect(rows.single.rating, Rating.good.value);
       expect(rows.single.source, ReviewSource.card.value);
+    });
+
+    testWidgets('rating offers Undo and restores the card', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+      await pumpCards(tester);
+      await tester.tap(find.text('Show answer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Good'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('All caught up.'), findsOneWidget);
+      expect(find.byKey(const Key('cardsUndoButton')), findsOneWidget);
+      expect(await dummyDb.select(dummyDb.reviews).get(), hasLength(1));
+
+      await tester.tap(find.byKey(const Key('cardsUndoButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Cow'), findsOneWidget);
+      expect(find.text('Show answer'), findsOneWidget);
+      expect(find.byKey(const Key('cardsUndoButton')), findsNothing);
+      expect(await dummyDb.select(dummyDb.reviews).get(), isEmpty);
     });
 
     testWidgets('front shows the English word and hides the meaning', (

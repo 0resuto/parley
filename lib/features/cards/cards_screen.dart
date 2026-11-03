@@ -38,7 +38,18 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     return Scaffold(
       // The shell owns the keyboard inset for tab screens.
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(title: const Text('Cards')),
+      appBar: AppBar(
+        title: const Text('Cards'),
+        actions: [
+          if (state.undo != null)
+            TextButton.icon(
+              key: const Key('cardsUndoButton'),
+              onPressed: state.busy ? null : controller.undoRating,
+              icon: const Icon(Icons.undo_rounded, size: 18),
+              label: const Text('Undo'),
+            ),
+        ],
+      ),
       body: Builder(
         builder: (BuildContext context) {
           if (state.isLoading) {

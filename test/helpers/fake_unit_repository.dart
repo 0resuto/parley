@@ -96,6 +96,14 @@ class FakeUnitRepository implements UnitRepository {
   }
 
   @override
+  Future<void> restoreSrs(Unit unit) async {
+    final int index = _units.indexWhere((u) => u.id == unit.id);
+    if (index != -1) {
+      _units[index] = unit;
+    }
+  }
+
+  @override
   Stream<List<Unit>> watchAll({UnitStatus? status, String? query}) {
     return watchAllWithTotal(
       status: status,

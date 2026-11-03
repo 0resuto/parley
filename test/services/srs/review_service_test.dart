@@ -51,6 +51,35 @@ void main() {
       expect(reread, updated);
     });
 
+    test(
+      'undo restores the previous FSRS state and deletes the review',
+      () async {
+        final Unit unit = await repo.add(text: 'Cow');
+        final DateTime at = initial.add(const Duration(hours: 2));
+
+        final ReviewResult? result = await reviews.rateWithUndo(
+          unit.id,
+          Rating.good,
+          ReviewSource.card,
+          at: at,
+        );
+        expect(result, isNotNull);
+        expect((await repo.getById(unit.id))!.lastReview, at.toUtc());
+        expect(await allReviews(), hasLength(1));
+
+        await reviews.undo(result!.reviewId, unit);
+
+        final Unit? restored = await repo.getById(unit.id);
+        expect(restored, isNotNull);
+        expect(restored!.phase, unit.phase);
+        expect(restored.due, unit.due);
+        expect(restored.stability, unit.stability);
+        expect(restored.fsrsJson, unit.fsrsJson);
+        expect(restored.lastReview, unit.lastReview);
+        expect(await allReviews(), isEmpty);
+      },
+    );
+
     test('review row is written with the right source and rating', () async {
       final Unit unit = await repo.add(text: 'Cow');
       final DateTime at = initial.add(const Duration(minutes: 5));

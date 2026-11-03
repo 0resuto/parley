@@ -167,6 +167,59 @@ void main() {
       expect(queue.map((u) => u.text), ['beta']);
     });
 
+    test('undo restores the rated card and removes the review', () async {
+      final Unit cow = await addWord(
+        'cow',
+        due: initial.subtract(const Duration(days: 1)),
+      );
+      await refresh();
+      final CardsController controller = container.read(
+        cardsControllerProvider.notifier,
+      );
+      await controller.reveal();
+      await controller.rate(Rating.good);
+
+      CardsState state = container.read(cardsControllerProvider);
+      expect(state.undo, isNotNull);
+      expect(await db.select(db.reviews).get(), hasLength(1));
+
+      await controller.undoRating();
+
+      state = container.read(cardsControllerProvider);
+      expect(state.undo, isNull);
+      expect(state.current?.text, 'cow');
+      expect(await db.select(db.reviews).get(), isEmpty);
+      final Unit? restored = await container
+          .read(unitRepositoryProvider)
+          .getById(cow.id);
+      expect(restored!.fsrsJson, cow.fsrsJson);
+      expect(restored.due, cow.due);
+    });
+
+    test('clearUndo hides the action without deleting the review', () async {
+      final Unit cow = await addWord(
+        'cow',
+        due: initial.subtract(const Duration(days: 1)),
+      );
+      await refresh();
+      final CardsController controller = container.read(
+        cardsControllerProvider.notifier,
+      );
+      await controller.reveal();
+      await controller.rate(Rating.good);
+      expect(container.read(cardsControllerProvider).undo, isNotNull);
+
+      controller.clearUndo();
+
+      expect(container.read(cardsControllerProvider).undo, isNull);
+      expect(await db.select(db.reviews).get(), hasLength(1));
+      expect(
+        (await container.read(unitRepositoryProvider).getById(cow.id))!
+            .fsrsJson,
+        isNot(cow.fsrsJson),
+      );
+    });
+
     test('a second rate while the first is in flight is ignored', () async {
       await addWord('cow');
       await refresh();

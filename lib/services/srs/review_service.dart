@@ -33,6 +33,17 @@ enum ReviewSource {
   }
 }
 
+/// Result of a successful review, including the row id needed for undo.
+class ReviewResult {
+  const ReviewResult({required this.unit, required this.reviewId});
+
+  /// The unit after the FSRS update.
+  final Unit unit;
+
+  /// Primary key of the inserted `reviews` row.
+  final int reviewId;
+}
+
 /// Applies FSRS reviews and records them (PLAN 2.3).
 ///
 /// Time comes from [Clock] unless [rate] gets an explicit `at`, so tests
@@ -62,6 +73,22 @@ class ReviewService {
     ReviewSource source, {
     DateTime? at,
   }) async {
+    final ReviewResult? result = await rateWithUndo(
+      unitId,
+      rating,
+      source,
+      at: at,
+    );
+    return result?.unit;
+  }
+
+  /// Same as [rate], but also returns the inserted review row id.
+  Future<ReviewResult?> rateWithUndo(
+    int unitId,
+    Rating rating,
+    ReviewSource source, {
+    DateTime? at,
+  }) async {
     final Unit? unit = await _units.getById(unitId);
     if (unit == null) {
       return null;
@@ -84,7 +111,7 @@ class ReviewService {
           lastReview: now,
         ),
       );
-      await _db
+      final int reviewId = await _db
           .into(_db.reviews)
           .insert(
             db.ReviewsCompanion.insert(
@@ -94,7 +121,15 @@ class ReviewService {
               reviewedAt: now,
             ),
           );
-      return updated;
+      return ReviewResult(unit: updated, reviewId: reviewId);
+    });
+  }
+
+  /// Removes a review row and restores [previous]'s FSRS snapshot.
+  Future<void> undo(int reviewId, Unit previous) async {
+    await _db.transaction(() async {
+      await (_db.delete(_db.reviews)..where((t) => t.id.equals(reviewId))).go();
+      await _units.restoreSrs(previous);
     });
   }
 }

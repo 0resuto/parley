@@ -8,6 +8,17 @@ import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/services/srs/review_service.dart';
 import 'package:parley/services/srs/srs_service.dart';
 
+/// Snapshot needed to undo the most recent card rating.
+class CardsUndo {
+  const CardsUndo({required this.unit, required this.reviewId});
+
+  /// The card exactly as it was before the rating.
+  final Unit unit;
+
+  /// The inserted review row id.
+  final int reviewId;
+}
+
 /// Cards queue state (PLAN 3.1, PLAN 19.1).
 ///
 /// [queue] is non-Known units with `due <= now`, oldest due first.
@@ -28,6 +39,7 @@ class CardsState {
     required this.isLoading,
     this.ahead = false,
     this.busy = false,
+    this.undo,
     this.error,
   });
 
@@ -39,6 +51,7 @@ class CardsState {
       isLoading = true,
       ahead = false,
       busy = false,
+      undo = null,
       error = null;
 
   final List<Unit> queue;
@@ -50,6 +63,9 @@ class CardsState {
   /// True while showing cards before they are due.
   final bool ahead;
   final bool busy;
+
+  /// The last rating, while its Undo action is still offered.
+  final CardsUndo? undo;
 
   /// English error text shown with a Retry button (null when none).
   final String? error;
@@ -71,6 +87,8 @@ class CardsState {
     bool? isLoading,
     bool? ahead,
     bool? busy,
+    CardsUndo? undo,
+    bool clearUndo = false,
     String? error,
     bool clearError = false,
   }) {
@@ -82,6 +100,7 @@ class CardsState {
       isLoading: isLoading ?? this.isLoading,
       ahead: ahead ?? this.ahead,
       busy: busy ?? this.busy,
+      undo: clearUndo ? null : (undo ?? this.undo),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -113,10 +132,11 @@ class CardsController extends Notifier<CardsState> {
   ///
   /// Failures leave an [CardsState.error] message with a Retry button
   /// instead of hanging on the spinner (PLAN 9.1).
-  Future<void> refresh() async {
+  Future<void> refresh({CardsUndo? undo, bool clearUndo = false}) async {
     final UnitRepository units = ref.read(unitRepositoryProvider);
     final Clock clock = ref.read(clockProvider);
     final bool ahead = state.ahead;
+    final CardsUndo? nextUndo = clearUndo ? null : (undo ?? state.undo);
     try {
       final List<Unit> queue = ahead
           ? await units.aheadQueue()
@@ -131,6 +151,7 @@ class CardsController extends Notifier<CardsState> {
         resolving: false,
         isLoading: false,
         ahead: ahead,
+        undo: nextUndo,
       );
     } catch (_) {
       if (!ref.mounted) {
@@ -194,10 +215,11 @@ class CardsController extends Notifier<CardsState> {
       return;
     }
     state = state.copyWith(busy: true);
+    ReviewResult? result;
     try {
-      await ref
+      result = await ref
           .read(reviewServiceProvider)
-          .rate(current.id, rating, ReviewSource.card);
+          .rateWithUndo(current.id, rating, ReviewSource.card);
     } catch (_) {
       if (!ref.mounted) {
         return;
@@ -205,7 +227,40 @@ class CardsController extends Notifier<CardsState> {
       state = state.copyWith(error: 'Something went wrong.', busy: false);
       return;
     }
-    await refresh();
+    if (!ref.mounted) {
+      return;
+    }
+    await refresh(
+      undo: result == null
+          ? null
+          : CardsUndo(unit: current, reviewId: result.reviewId),
+    );
+  }
+
+  /// Undoes the most recent card rating and restores its FSRS snapshot.
+  Future<void> undoRating() async {
+    final CardsUndo? undo = state.undo;
+    if (undo == null || state.busy) {
+      return;
+    }
+    state = state.copyWith(busy: true);
+    try {
+      await ref.read(reviewServiceProvider).undo(undo.reviewId, undo.unit);
+    } catch (_) {
+      if (!ref.mounted) {
+        return;
+      }
+      state = state.copyWith(error: 'Something went wrong.', busy: false);
+      return;
+    }
+    await refresh(clearUndo: true);
+  }
+
+  /// Hides the Undo action, e.g. when leaving the Cards tab.
+  void clearUndo() {
+    if (state.undo != null) {
+      state = state.copyWith(clearUndo: true);
+    }
   }
 
   /// Marks the current card as known and moves to the next one.

@@ -157,6 +157,22 @@ class UnitRepository {
     return updated;
   }
 
+  /// Restores only the FSRS snapshot after undoing a review.
+  ///
+  /// Leaves the word, forms, description and Known flag untouched, so an
+  /// edit made in another screen is not rolled back.
+  Future<void> restoreSrs(Unit unit) async {
+    await (_db.update(_db.units)..where((t) => t.id.equals(unit.id))).write(
+      db.UnitsCompanion(
+        phase: Value(unit.phase.value),
+        due: Value(unit.due),
+        stability: Value(unit.stability),
+        fsrsJson: Value(unit.fsrsJson),
+        lastReview: Value(unit.lastReview),
+      ),
+    );
+  }
+
   /// Updates only the editable word fields, keeping the FSRS snapshot,
   /// the Known flag and the description untouched.
   ///

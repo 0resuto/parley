@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:parley/features/cards/cards_controller.dart';
 import 'package:parley/features/cards/cards_screen.dart';
 import 'package:parley/features/chat/chat_screen.dart';
 import 'package:parley/features/dictionary/dictionary_screen.dart';
 import 'package:parley/features/settings/settings_screen.dart';
 
-class ShellScreen extends StatefulWidget {
+class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
   @override
-  State<ShellScreen> createState() => _ShellScreenState();
+  ConsumerState<ShellScreen> createState() => _ShellScreenState();
 }
 
-class _ShellScreenState extends State<ShellScreen> {
+class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _index = 0;
   bool _wasKeyboardVisible = false;
 
@@ -49,6 +51,9 @@ class _ShellScreenState extends State<ShellScreen> {
               selectedIndex: _index,
               onDestinationSelected: (int value) {
                 FocusManager.instance.primaryFocus?.unfocus();
+                if (value != 1) {
+                  ref.read(cardsControllerProvider.notifier).clearUndo();
+                }
                 setState(() {
                   _index = value;
                 });
