@@ -174,6 +174,8 @@ void main() {
     Unit? initialUnit,
     SettingsRepository? settings,
     bool settle = true,
+    double textScale = 1,
+    double? height,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -192,11 +194,23 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: WordPopup(
-              surface: surface,
-              wordKey: wordKey,
-              sentence: sentence,
-              initialUnit: initialUnit,
+            body: Builder(
+              builder: (BuildContext context) {
+                final Widget popup = WordPopup(
+                  surface: surface,
+                  wordKey: wordKey,
+                  sentence: sentence,
+                  initialUnit: initialUnit,
+                );
+                return MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(textScale)),
+                  child: height == null
+                      ? popup
+                      : SizedBox(height: height, child: popup),
+                );
+              },
             ),
           ),
         ),
@@ -210,6 +224,25 @@ void main() {
   }
 
   group('WordPopup 6.6', () {
+    testWidgets('content scrolls in a short sheet at 2x text', (
+      WidgetTester tester,
+    ) async {
+      dictionary = FakeDictionaryService({'cow': 'корова'});
+      connectivity.setOnline(false);
+
+      await pumpPopup(
+        tester,
+        surface: 'cow',
+        wordKey: 'cow',
+        sentence: 'I see a cow.',
+        textScale: 2,
+        height: 300,
+      );
+
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('dictionary word shows the bundle meaning offline', (
       WidgetTester tester,
     ) async {

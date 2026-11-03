@@ -28,6 +28,7 @@ Future<void> showWordPopup({
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => WordPopup(
       surface: surface,
@@ -372,7 +373,7 @@ class _WordPopupState extends ConsumerState<WordPopup> {
     }
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
