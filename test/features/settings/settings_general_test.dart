@@ -246,6 +246,20 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('scrolling dismisses the keyboard', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      final SingleChildScrollView scroll = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView).first,
+      );
+      expect(
+        scroll.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+    });
+
     testWidgets('shows all sections', (WidgetTester tester) async {
       await pumpSettings(tester);
 

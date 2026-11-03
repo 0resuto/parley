@@ -170,6 +170,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
                           child: units.isEmpty
                               ? _emptyState(isFiltering: isFiltering)
                               : ListView.builder(
+                                  keyboardDismissBehavior:
+                                      ScrollViewKeyboardDismissBehavior.onDrag,
                                   padding: const EdgeInsets.only(
                                     top: 4,
                                     bottom: 96,

@@ -288,6 +288,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // section is built upfront; widget tests can find off-screen items
       // and scroll to them with ensureVisible.
       body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

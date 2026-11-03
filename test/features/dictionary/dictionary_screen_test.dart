@@ -104,6 +104,19 @@ void main() {
       );
     });
 
+    testWidgets('scrolling the list dismisses the keyboard', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+      await pumpDictionary(tester);
+
+      final ListView list = tester.widget<ListView>(find.byType(ListView));
+      expect(
+        list.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+    });
+
     testWidgets('word card survives 2x text scale', (
       WidgetTester tester,
     ) async {
