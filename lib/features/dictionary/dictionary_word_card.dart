@@ -77,7 +77,13 @@ class DictionaryWordCard extends StatelessWidget {
                             _dueBadge(theme, dueColor, fullDue, compactDue),
                             const SizedBox(width: 6),
                           ],
-                          _statusChip(accent),
+                          _statusChip(
+                            theme,
+                            accent,
+                            textColor: isKnown
+                                ? colors.onSurfaceVariant
+                                : accent,
+                          ),
                         ],
                       ],
                     ),
@@ -90,7 +96,13 @@ class DictionaryWordCard extends StatelessWidget {
                         children: [
                           if (!isKnown)
                             _dueBadge(theme, dueColor, fullDue, compactDue),
-                          _statusChip(accent),
+                          _statusChip(
+                            theme,
+                            accent,
+                            textColor: isKnown
+                                ? colors.onSurfaceVariant
+                                : accent,
+                          ),
                         ],
                       ),
                     ],
@@ -121,15 +133,18 @@ class DictionaryWordCard extends StatelessWidget {
     );
   }
 
-  Widget _statusChip(Color accent) {
+  Widget _statusChip(
+    ThemeData theme,
+    Color accent, {
+    required Color textColor,
+  }) {
     return Chip(
       label: Text(
         statusLabel(status),
-        style: TextStyle(
-          fontSize: 10,
+        style: theme.textTheme.labelSmall?.copyWith(
           height: 1.1,
           fontWeight: FontWeight.w600,
-          color: accent,
+          color: textColor,
         ),
       ),
       labelPadding: const EdgeInsets.symmetric(horizontal: 4),

@@ -174,6 +174,35 @@ void main() {
       expect(find.text('No reviews scheduled'), findsNothing);
     });
 
+    testWidgets('status chips keep readable text colors', (
+      WidgetTester tester,
+    ) async {
+      final Unit cow = await repo.add(text: 'Cow');
+      await repo.add(text: 'Milk');
+      await repo.setKnown(cow.id, true);
+
+      await pumpDictionary(tester);
+
+      final Finder knownChip = find.widgetWithText(Chip, 'Known');
+      final Finder newChip = find.widgetWithText(Chip, 'New');
+      expect(knownChip, findsOneWidget);
+      expect(newChip, findsOneWidget);
+
+      final ThemeData theme = Theme.of(tester.element(knownChip));
+      final ColorScheme colors = theme.colorScheme;
+      final Text knownLabel = tester.widget<Text>(
+        find.descendant(of: knownChip, matching: find.text('Known')),
+      );
+      final Text newLabel = tester.widget<Text>(
+        find.descendant(of: newChip, matching: find.text('New')),
+      );
+
+      // Known uses the brighter muted text instead of the low-contrast outline.
+      expect(knownLabel.style?.color, colors.onSurfaceVariant);
+      expect(knownLabel.style?.fontSize, theme.textTheme.labelSmall?.fontSize);
+      expect(newLabel.style?.color, colors.primary);
+    });
+
     testWidgets('shows the transcription when the source provides one', (
       WidgetTester tester,
     ) async {
