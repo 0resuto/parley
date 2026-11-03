@@ -194,33 +194,50 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
       itemCount: _conversations.length,
       itemBuilder: (BuildContext context, int index) {
         final Conversation conversation = _conversations[index];
+        final ColorScheme colors = Theme.of(context).colorScheme;
         return Dismissible(
           key: ValueKey(
             'conversationDismissible_${conversation.id}_$_listRevision',
           ),
           direction: DismissDirection.endToStart,
-          background: Container(
-            color: Theme.of(context).colorScheme.errorContainer,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: const Icon(Icons.delete_outline),
+          background: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.errorContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: colors.onErrorContainer,
+                  ),
+                ),
+              ),
+            ),
           ),
           confirmDismiss: (_) => _confirmDelete(conversation),
           onDismissed: (_) => _remove(conversation),
-          child: ListTile(
-            key: ValueKey('conversationTile_${conversation.id}'),
-            title: Text(conversation.title),
-            subtitle: Text(
-              DateFormat.yMMMd().add_jm().format(
-                conversation.updatedAt.toLocal(),
+          child: Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
+              key: ValueKey('conversationTile_${conversation.id}'),
+              title: Text(conversation.title),
+              subtitle: Text(
+                DateFormat.yMMMd().add_jm().format(
+                  conversation.updatedAt.toLocal(),
+                ),
               ),
-            ),
-            onTap: () => _open(conversation),
-            trailing: IconButton(
-              key: ValueKey('deleteConversation_${conversation.id}'),
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete',
-              onPressed: () => _delete(conversation),
+              onTap: () => _open(conversation),
+              trailing: IconButton(
+                key: ValueKey('deleteConversation_${conversation.id}'),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete',
+                onPressed: () => _delete(conversation),
+              ),
             ),
           ),
         );

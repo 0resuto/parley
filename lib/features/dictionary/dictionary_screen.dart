@@ -101,7 +101,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -127,7 +127,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             height: 48,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
                   for (final (String label, UnitStatus? status) in _filters)
@@ -212,7 +212,7 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
   }) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       child: Row(
         children: [
           Icon(

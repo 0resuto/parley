@@ -68,6 +68,20 @@ void main() {
       expect(tester.widget<SafeArea>(safeArea).top, isFalse);
     });
 
+    testWidgets('history cards keep the screen gutter', (
+      WidgetTester tester,
+    ) async {
+      final MemoryDocumentStore store = MemoryDocumentStore(
+        rules: 'old rules',
+        clock: FakeClock(DateTime.utc(2026, 1, 10, 12)),
+      );
+      await store.write(DocumentKind.rules, 'new rules');
+      await _pumpDocument(tester, store, DocumentKind.rules);
+
+      final Card card = tester.widget<Card>(find.byType(Card));
+      expect(card.margin, const EdgeInsets.symmetric(vertical: 4));
+    });
+
     testWidgets('notes screen uses notes title and limit', (
       WidgetTester tester,
     ) async {

@@ -246,6 +246,16 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('sections keep the screen gutter', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final Card firstSection = tester.widget<Card>(find.byType(Card).first);
+      expect(
+        firstSection.margin,
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      );
+    });
+
     testWidgets('scrolling dismisses the keyboard', (
       WidgetTester tester,
     ) async {

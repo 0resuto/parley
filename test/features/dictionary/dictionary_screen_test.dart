@@ -104,6 +104,19 @@ void main() {
       );
     });
 
+    testWidgets('word cards keep the screen gutter', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+      await pumpDictionary(tester);
+
+      final Card card = tester.widget<Card>(find.byType(Card));
+      expect(
+        card.margin,
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      );
+    });
+
     testWidgets('scrolling the list dismisses the keyboard', (
       WidgetTester tester,
     ) async {

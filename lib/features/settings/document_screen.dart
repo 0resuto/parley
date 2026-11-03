@@ -266,6 +266,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
                   else
                     ..._versions.map(
                       (DocumentVersion version) => Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
                         child: ListTile(
                           title: Text(_formatDate(version.createdAt)),
                           subtitle: version.preview.isEmpty

@@ -37,7 +37,7 @@ class DictionaryWordCard extends StatelessWidget {
     final String fullDue = formatRelativeDue(unit.due, now);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: InkWell(
         onTap: onTap,
         child: Padding(

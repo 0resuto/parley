@@ -152,6 +152,10 @@ void main() {
       );
       expect(safeArea, findsOneWidget);
       expect(tester.widget<SafeArea>(safeArea).top, isFalse);
+      expect(
+        tester.widget<Card>(find.byType(Card)).margin,
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      );
     });
 
     testWidgets('tap opens the conversation in chat', (
