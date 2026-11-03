@@ -49,6 +49,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   late final ScrollController _scroll;
   late final FocusNode _inputFocus;
   bool _keyboardVisible = false;
+  bool _stickToBottom = true;
+  double? _lastListHeight;
   int? _conversationId;
   String _title = 'Chat';
   bool _starting = true;
@@ -197,6 +199,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = chosen!.id;
         _title = chosen.title;
       });
+      _stickToBottom = true;
+      _lastListHeight = null;
       unawaited(_rememberConversation(chosen.id));
       _watchConversation(chosen.id);
       await ref.read(chatControllerProvider(chosen.id).notifier).refresh();
@@ -304,6 +308,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = created.id;
         _title = created.title;
       });
+      _stickToBottom = true;
+      _lastListHeight = null;
       unawaited(_rememberConversation(created.id));
       _input.clear();
       _watchConversation(created.id);
@@ -338,6 +344,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (ref.read(chatControllerProvider(id)).isStreaming) {
       return;
     }
+    _stickToBottom = true;
     await controller.send(text);
     if (!mounted) {
       return;
@@ -540,6 +547,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = conversation.id;
         _title = conversation.title;
       });
+      _stickToBottom = true;
+      _lastListHeight = null;
       unawaited(_rememberConversation(conversation.id));
       _input.clear();
       _watchConversation(conversation.id);
@@ -578,6 +587,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         _conversationId = chosen.id;
         _title = chosen.title;
       });
+      _stickToBottom = true;
+      _lastListHeight = null;
       unawaited(_rememberConversation(chosen.id));
       _input.clear();
       _watchConversation(chosen.id);
@@ -623,6 +634,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       sentence: sentence,
       initialUnit: unit,
     );
+  }
+
+  /// Keeps the bottom anchored when the list viewport changes (keyboard or
+  /// composer height), but only if the user was already at the newest message.
+  void _onListHeight(double height) {
+    final double? previous = _lastListHeight;
+    _lastListHeight = height;
+    if (previous == null || (previous - height).abs() < 1) {
+      return;
+    }
+    if (_stickToBottom) {
+      _scrollToBottom(jump: true);
+    }
   }
 
   /// Scrolls the list so the newest message stays visible.
@@ -710,6 +734,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .maybeWhen(data: (v) => v, orElse: UnitIndex.empty);
 
     return Scaffold(
+      // The shell owns the keyboard inset for tab screens.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(_title),
         actions: [
@@ -728,7 +754,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ),
       body: Column(
         children: [
-          Expanded(child: _buildList(context, state, index)),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                _onListHeight(constraints.maxHeight);
+                return _buildList(context, state, index);
+              },
+            ),
+          ),
           if (state.error != null) _buildError(context, state),
           _buildComposer(state, sttState),
         ],
@@ -746,28 +779,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return const Center(child: Text('No messages yet. Say hello!'));
     }
     final int extra = streaming ? 1 : 0;
-    return ListView.builder(
-      key: const Key('chatList'),
-      controller: _scroll,
-      padding: const EdgeInsets.all(16),
-      itemCount: messages.length + extra,
-      itemBuilder: (BuildContext context, int indexBuilder) {
-        if (indexBuilder >= messages.length) {
-          final String text = state.streamingText.isEmpty
-              ? '...'
-              : state.streamingText;
-          return _streamingText(context, text, index);
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification notification) {
+        if (notification is ScrollUpdateNotification &&
+            notification.dragDetails != null) {
+          _stickToBottom =
+              notification.metrics.pixels >=
+              notification.metrics.maxScrollExtent - 32;
         }
-        final ChatMessage message = messages[indexBuilder];
-        switch (message.role) {
-          case ChatRole.user:
-            return _userBubble(context, message.content, index);
-          case ChatRole.assistant:
-            return _assistantText(context, message, index);
-          case ChatRole.event:
-            return _eventChip(context, message);
-        }
+        return false;
       },
+      child: ListView.builder(
+        key: const Key('chatList'),
+        controller: _scroll,
+        padding: const EdgeInsets.all(16),
+        itemCount: messages.length + extra,
+        itemBuilder: (BuildContext context, int indexBuilder) {
+          if (indexBuilder >= messages.length) {
+            final String text = state.streamingText.isEmpty
+                ? '...'
+                : state.streamingText;
+            return _streamingText(context, text, index);
+          }
+          final ChatMessage message = messages[indexBuilder];
+          switch (message.role) {
+            case ChatRole.user:
+              return _userBubble(context, message.content, index);
+            case ChatRole.assistant:
+              return _assistantText(context, message, index);
+            case ChatRole.event:
+              return _eventChip(context, message);
+          }
+        },
+      ),
     );
   }
 
@@ -1026,7 +1070,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     focusNode: _inputFocus,
                     minLines: 1,
                     maxLines: 5,
-                    onTapOutside: (_) => _dismissKeyboard(),
                     decoration: const InputDecoration(
                       hintText: 'Type a message',
                       border: InputBorder.none,

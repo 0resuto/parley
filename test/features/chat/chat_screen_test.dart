@@ -503,7 +503,7 @@ void main() {
       expect(focus.hasFocus, isFalse);
     });
 
-    testWidgets('tapping outside the composer drops focus', (
+    testWidgets('tapping the chat keeps the composer focused', (
       WidgetTester tester,
     ) async {
       await pumpChatNoHook(tester);
@@ -517,7 +517,8 @@ void main() {
       await tester.tapAt(const Offset(400, 400));
       await tester.pump();
 
-      expect(focus.hasFocus, isFalse);
+      // The keyboard must stay open so the chat can be scrolled.
+      expect(focus.hasFocus, isTrue);
     });
 
     testWidgets('opening history drops composer focus', (

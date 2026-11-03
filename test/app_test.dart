@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:parley/app.dart';
-import 'package:parley/data/db/database.dart';
+import 'package:parley/data/db/database.dart' hide Conversation;
+import 'package:parley/data/models/chat.dart';
 import 'package:parley/data/repositories/chat_repository.dart';
 import 'package:parley/features/dictionary/dictionary_providers.dart';
 import 'package:parley/features/shell/shell_screen.dart';
@@ -118,5 +119,148 @@ void main() {
     final BuildContext context = tester.element(find.byType(ShellScreen));
     expect(Theme.of(context).brightness, Brightness.dark);
     expect(Theme.of(context).colorScheme.brightness, Brightness.dark);
+  });
+
+  testWidgets('keyboard keeps the composer and newest message visible', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    final Conversation conversation = await chats.createConversation();
+    for (int i = 0; i < 20; i++) {
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: i.isEven ? ChatRole.user : ChatRole.assistant,
+        content:
+            'message $i\n'
+            '${List<String>.generate(5, (int j) => 'line $j').join('\n')}',
+      );
+    }
+    await pumpApp(tester);
+
+    await tester.tap(find.byKey(const Key('chatInput')));
+    await tester.pump();
+    final double dpr = tester.view.devicePixelRatio;
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * dpr);
+    await tester.pumpAndSettle();
+
+    final double screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final double inputBottom = tester
+        .getBottomLeft(find.byKey(const Key('chatInput')))
+        .dy;
+    expect(inputBottom, lessThanOrEqualTo(screenHeight - 300 + 1));
+    expect(inputBottom, greaterThan(screenHeight - 300 - 60));
+
+    final ListView list = tester.widget(find.byKey(const Key('chatList')));
+    final ScrollController controller = list.controller!;
+    expect(
+      controller.position.pixels,
+      closeTo(controller.position.maxScrollExtent, 1),
+    );
+    expect(find.textContaining('message 19'), findsOneWidget);
+  });
+
+  testWidgets('keyboard keeps a short chat in place', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    final Conversation conversation = await chats.createConversation();
+    await chats.addMessage(
+      conversationId: conversation.id,
+      role: ChatRole.user,
+      content: 'Only message',
+    );
+    await pumpApp(tester);
+
+    await tester.tap(find.byKey(const Key('chatInput')));
+    await tester.pump();
+    final double dpr = tester.view.devicePixelRatio;
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * dpr);
+    await tester.pumpAndSettle();
+
+    final double screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final double inputBottom = tester
+        .getBottomLeft(find.byKey(const Key('chatInput')))
+        .dy;
+    expect(inputBottom, lessThanOrEqualTo(screenHeight - 300 + 1));
+    expect(inputBottom, greaterThan(screenHeight - 300 - 60));
+
+    final ListView list = tester.widget(find.byKey(const Key('chatList')));
+    expect(list.controller!.position.maxScrollExtent, 0);
+    expect(find.text('Only message'), findsWidgets);
+  });
+
+  testWidgets('keyboard does not jump when reading older messages', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    final Conversation conversation = await chats.createConversation();
+    for (int i = 0; i < 20; i++) {
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: i.isEven ? ChatRole.user : ChatRole.assistant,
+        content:
+            'message $i\n'
+            '${List<String>.generate(5, (int j) => 'line $j').join('\n')}',
+      );
+    }
+    await pumpApp(tester);
+
+    final ListView list = tester.widget(find.byKey(const Key('chatList')));
+    final ScrollController controller = list.controller!;
+    await tester.drag(find.byKey(const Key('chatList')), const Offset(0, 500));
+    await tester.pumpAndSettle();
+    expect(controller.position.pixels, greaterThan(0));
+
+    await tester.tap(find.byKey(const Key('chatInput')));
+    await tester.pump();
+    final double dpr = tester.view.devicePixelRatio;
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * dpr);
+    await tester.pumpAndSettle();
+
+    expect(
+      controller.position.pixels,
+      lessThan(controller.position.maxScrollExtent),
+    );
+  });
+
+  testWidgets('scrolling with the keyboard open keeps it open', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    final Conversation conversation = await chats.createConversation();
+    for (int i = 0; i < 20; i++) {
+      await chats.addMessage(
+        conversationId: conversation.id,
+        role: i.isEven ? ChatRole.user : ChatRole.assistant,
+        content:
+            'message $i\n'
+            '${List<String>.generate(5, (int j) => 'line $j').join('\n')}',
+      );
+    }
+    await pumpApp(tester);
+
+    await tester.tap(find.byKey(const Key('chatInput')));
+    await tester.pump();
+    final double dpr = tester.view.devicePixelRatio;
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * dpr);
+    await tester.pumpAndSettle();
+
+    final TextField input = tester.widget(find.byKey(const Key('chatInput')));
+    final FocusNode focus = input.focusNode!;
+    expect(focus.hasFocus, isTrue);
+
+    final ListView list = tester.widget(find.byKey(const Key('chatList')));
+    final ScrollController controller = list.controller!;
+    final double before = controller.position.pixels;
+    await tester.drag(find.byKey(const Key('chatList')), const Offset(0, 300));
+    await tester.pump();
+    final double after = controller.position.pixels;
+    expect(after, lessThan(before));
+
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(controller.position.pixels, closeTo(after, 1));
+    expect(focus.hasFocus, isTrue);
   });
 }

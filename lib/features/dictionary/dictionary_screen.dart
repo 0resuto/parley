@@ -95,6 +95,8 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
     final ColorScheme colors = Theme.of(context).colorScheme;
 
     return Scaffold(
+      // The shell owns the keyboard inset for tab screens.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: const Text('Dictionary')),
       body: Column(
         children: [
@@ -102,7 +104,6 @@ class _DictionaryScreenState extends ConsumerState<DictionaryScreen> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: TextField(
               controller: _searchController,
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
               decoration: InputDecoration(
                 hintText: 'Search dictionary',
                 prefixIcon: const Icon(Icons.search),

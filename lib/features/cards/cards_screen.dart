@@ -36,6 +36,8 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     );
 
     return Scaffold(
+      // The shell owns the keyboard inset for tab screens.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: const Text('Cards')),
       body: Builder(
         builder: (BuildContext context) {

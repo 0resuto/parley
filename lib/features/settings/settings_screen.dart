@@ -269,6 +269,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // The shell owns the keyboard inset for tab screens.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(title: const Text('Settings')),
       // SingleChildScrollView + Column (not a lazy ListView) so every
       // section is built upfront; widget tests can find off-screen items
