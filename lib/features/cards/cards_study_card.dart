@@ -123,7 +123,7 @@ class CardsStudyCard extends StatelessWidget {
     final ColorScheme colors = theme.colorScheme;
     if (!revealed) {
       return SizedBox(
-        height: 52,
+        height: 48,
         child: FilledButton.icon(
           onPressed: onReveal,
           icon: const Icon(Icons.visibility_outlined),
@@ -285,7 +285,7 @@ class CardsStudyCard extends StatelessWidget {
     required Color foreground,
   }) {
     return SizedBox(
-      height: 46,
+      height: 48,
       child: ElevatedButton(
         onPressed: busy ? null : () => onRate(rating),
         style: ElevatedButton.styleFrom(
@@ -296,7 +296,7 @@ class CardsStudyCard extends StatelessWidget {
           disabledForegroundColor: foreground.withValues(alpha: 0.5),
           padding: const EdgeInsets.symmetric(horizontal: 4),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: Theme.of(
             context,

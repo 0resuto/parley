@@ -233,6 +233,32 @@ void main() {
       expect(find.text('All caught up.'), findsOneWidget);
     });
 
+    testWidgets('study actions share the button height and radius', (
+      WidgetTester tester,
+    ) async {
+      await repo.add(text: 'Cow');
+      await pumpCards(tester);
+
+      final Finder showAnswer = find.ancestor(
+        of: find.text('Show answer'),
+        matching: find.byWidgetPredicate((Widget w) => w is FilledButton),
+      );
+      expect(tester.getSize(showAnswer).height, 48);
+
+      await tester.tap(find.text('Show answer'));
+      await tester.pumpAndSettle();
+
+      for (final String label in <String>['Again', 'Hard', 'Good', 'Easy']) {
+        final Finder finder = find.widgetWithText(ElevatedButton, label);
+        expect(tester.getSize(finder).height, 48);
+        final ElevatedButton button = tester.widget<ElevatedButton>(finder);
+        final RoundedRectangleBorder shape =
+            button.style!.shape!.resolve(const <WidgetState>{})!
+                as RoundedRectangleBorder;
+        expect(shape.borderRadius, BorderRadius.circular(16));
+      }
+    });
+
     testWidgets('full cycle: reveal, rate, mark known', (
       WidgetTester tester,
     ) async {
