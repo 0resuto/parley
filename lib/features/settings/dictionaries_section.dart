@@ -307,6 +307,10 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
           ),
           error: (_, _) => ListTile(
             key: const Key('dictionariesError'),
+            leading: Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.error,
+            ),
             title: const Text('Your dictionaries could not be loaded.'),
             trailing: TextButton(
               key: const Key('dictionariesRetry'),

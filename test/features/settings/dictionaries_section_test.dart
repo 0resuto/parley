@@ -619,6 +619,15 @@ void main() {
         find.text('Your dictionaries could not be loaded.'),
         findsOneWidget,
       );
+      final Finder errorIcon = find.descendant(
+        of: find.byKey(const Key('dictionariesError')),
+        matching: find.byIcon(Icons.error_outline),
+      );
+      expect(errorIcon, findsOneWidget);
+      expect(
+        tester.widget<Icon>(errorIcon).color,
+        Theme.of(tester.element(errorIcon)).colorScheme.error,
+      );
 
       // The import tile is independent of the failed list stream.
       await tapImport(tester);
