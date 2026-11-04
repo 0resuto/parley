@@ -250,6 +250,9 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
               child: const Text('Cancel'),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Remove'),
             ),
@@ -416,6 +419,7 @@ class _DictionariesSectionState extends ConsumerState<DictionariesSection> {
           IconButton(
             key: ValueKey('dictionaryRemove_${dictionary.id}'),
             icon: const Icon(Icons.delete_outline),
+            color: Theme.of(context).colorScheme.error,
             tooltip: 'Remove',
             onPressed: () => _remove(dictionary),
           ),

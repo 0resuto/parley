@@ -271,11 +271,29 @@ void main() {
       );
       await tester.ensureVisible(deleteButton);
       await tester.pumpAndSettle();
+      final ThemeData theme = Theme.of(tester.element(deleteButton));
+      expect(
+        tester
+            .widget<OutlinedButton>(deleteButton)
+            .style
+            ?.foregroundColor
+            ?.resolve(const <WidgetState>{}),
+        theme.colorScheme.error,
+      );
       await tester.tap(deleteButton);
       await tester.pumpAndSettle();
 
       expect(find.text('Delete this word?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      final Finder confirm = find.widgetWithText(TextButton, 'Delete');
+      expect(
+        tester
+            .widget<TextButton>(confirm)
+            .style
+            ?.foregroundColor
+            ?.resolve(const <WidgetState>{}),
+        theme.colorScheme.error,
+      );
+      await tester.tap(confirm);
       await tester.pumpAndSettle();
 
       expect(await repo.getById(created.id), isNull);

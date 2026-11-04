@@ -112,6 +112,9 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
             ),
             TextButton(
               key: const Key('confirmDeleteButton'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Delete'),
             ),
@@ -235,6 +238,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
               trailing: IconButton(
                 key: ValueKey('deleteConversation_${conversation.id}'),
                 icon: const Icon(Icons.delete_outline),
+                color: colors.error,
                 tooltip: 'Delete',
                 onPressed: () => _delete(conversation),
               ),

@@ -556,11 +556,23 @@ void main() {
 
       await tester.ensureVisible(find.byKey(ValueKey('dictionaryRemove_$id')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(ValueKey('dictionaryRemove_$id')));
+      final Finder remove = find.byKey(ValueKey('dictionaryRemove_$id'));
+      final ThemeData theme = Theme.of(tester.element(remove));
+      expect(tester.widget<IconButton>(remove).color, theme.colorScheme.error);
+      await tester.tap(remove);
       await tester.pumpAndSettle();
 
       expect(find.text('Remove dictionary?'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Remove'));
+      final Finder confirm = find.widgetWithText(TextButton, 'Remove');
+      expect(
+        tester
+            .widget<TextButton>(confirm)
+            .style
+            ?.foregroundColor
+            ?.resolve(const <WidgetState>{}),
+        theme.colorScheme.error,
+      );
+      await tester.tap(confirm);
       await tester.pumpAndSettle();
 
       expect(find.text('My words'), findsNothing);

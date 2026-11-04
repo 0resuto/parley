@@ -296,7 +296,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Delete conversation?'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('confirmDeleteButton')));
+      final Finder confirm = find.byKey(const Key('confirmDeleteButton'));
+      final ThemeData theme = Theme.of(tester.element(confirm));
+      expect(
+        tester
+            .widget<TextButton>(confirm)
+            .style
+            ?.foregroundColor
+            ?.resolve(const <WidgetState>{}),
+        theme.colorScheme.error,
+      );
+      await tester.tap(confirm);
       await tester.pumpAndSettle();
 
       expect(find.text('First chat'), findsNothing);

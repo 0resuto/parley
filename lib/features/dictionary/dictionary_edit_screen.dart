@@ -281,6 +281,9 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Delete'),
             ),
@@ -340,6 +343,7 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
         ),
       );
     }
+    final ColorScheme colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('Edit word')),
       body: SafeArea(
@@ -374,6 +378,10 @@ class _EditScreenState extends ConsumerState<_EditScreen> {
             SizedBox(
               height: 48,
               child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.error,
+                  side: BorderSide(color: colors.error.withValues(alpha: 0.5)),
+                ),
                 onPressed: _confirmDelete,
                 icon: const Icon(Icons.delete),
                 label: const Text('Delete word'),

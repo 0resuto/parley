@@ -246,11 +246,23 @@ void main() {
         });
     final FakeSttModelsController controller = await pumpSection(tester, state);
 
-    await tester.tap(find.byKey(const Key('sttDelete_moonshine')));
+    final Finder delete = find.byKey(const Key('sttDelete_moonshine'));
+    final ThemeData theme = Theme.of(tester.element(delete));
+    expect(tester.widget<IconButton>(delete).color, theme.colorScheme.error);
+    await tester.tap(delete);
     await tester.pumpAndSettle();
     expect(find.text('Delete model?'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('sttDeleteConfirmButton')));
+    final Finder confirm = find.byKey(const Key('sttDeleteConfirmButton'));
+    expect(
+      tester
+          .widget<TextButton>(confirm)
+          .style
+          ?.foregroundColor
+          ?.resolve(const <WidgetState>{}),
+      theme.colorScheme.error,
+    );
+    await tester.tap(confirm);
     await tester.pumpAndSettle();
 
     expect(controller.deletes, [SttEngineKind.moonshine]);

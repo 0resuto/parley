@@ -149,6 +149,9 @@ class SttModelsSection extends ConsumerWidget {
             ),
             TextButton(
               key: const Key('sttDeleteConfirmButton'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Delete'),
             ),
@@ -313,6 +316,7 @@ class _ModelCard extends StatelessWidget {
       SttModelPhase.ready => IconButton(
         key: Key('sttDelete_$id'),
         icon: const Icon(Icons.delete_outline),
+        color: Theme.of(context).colorScheme.error,
         tooltip: 'Delete',
         onPressed: onDelete,
       ),
