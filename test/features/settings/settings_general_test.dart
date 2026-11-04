@@ -304,10 +304,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Voice'), findsOneWidget);
       expect(find.text('Data'), findsOneWidget);
-      await tester.ensureVisible(find.text('Version 0.3.0'));
+      await tester.ensureVisible(find.text('Version 0.4.0'));
       await tester.pumpAndSettle();
       expect(find.text('About'), findsOneWidget);
-      expect(find.text('Version 0.3.0'), findsOneWidget);
+      expect(find.text('Version 0.4.0'), findsOneWidget);
       expect(find.text('Dictionary data'), findsOneWidget);
       expect(find.text('Wiktionary via kaikki.org (CC BY-SA)'), findsOneWidget);
     });

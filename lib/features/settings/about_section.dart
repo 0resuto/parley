@@ -10,7 +10,7 @@ class AboutSection extends StatelessWidget {
   const AboutSection({super.key});
 
   // (A-63) Kept in sync with `version:` in pubspec.yaml by a test.
-  static const String appVersion = '0.3.0';
+  static const String appVersion = '0.4.0';
 
   @override
   Widget build(BuildContext context) {
