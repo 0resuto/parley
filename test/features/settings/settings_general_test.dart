@@ -256,6 +256,19 @@ void main() {
       );
     });
 
+    testWidgets('descriptions use the shared muted colour', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      final Finder description = find.text(
+        'Only OpenAI-format models are supported.',
+      );
+      final Text text = tester.widget<Text>(description);
+      final ThemeData theme = Theme.of(tester.element(description));
+      expect(text.style?.color, theme.colorScheme.onSurfaceVariant);
+    });
+
     testWidgets('scrolling dismisses the keyboard', (
       WidgetTester tester,
     ) async {

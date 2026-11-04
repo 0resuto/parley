@@ -28,10 +28,12 @@ void main() {
     );
 
     expect(find.text('Version ${AboutSection.appVersion}'), findsOneWidget);
-    final Text version = tester.widget<Text>(
-      find.text('Version ${AboutSection.appVersion}'),
+    final Finder versionFinder = find.text(
+      'Version ${AboutSection.appVersion}',
     );
+    final Text version = tester.widget<Text>(versionFinder);
+    final ThemeData theme = Theme.of(tester.element(versionFinder));
     expect(version.style?.fontSize, 12);
-    expect(version.style?.color?.a, closeTo(0.8, 0.01));
+    expect(version.style?.color, theme.colorScheme.onSurfaceVariant);
   });
 }
