@@ -1116,8 +1116,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final Offset local = overlay.globalToLocal(globalPosition);
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
+    final ColorScheme colors = Theme.of(context).colorScheme;
     final String? action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -1126,15 +1125,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         overlay.size.width - local.dx,
         overlay.size.height - local.dy,
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.4)),
-      ),
-      color: colors.surfaceContainerHighest,
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.transparent,
-      elevation: 0,
-      menuPadding: const EdgeInsets.symmetric(vertical: 6),
       clipBehavior: Clip.antiAlias,
       popUpAnimationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 160),
@@ -1144,7 +1134,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         PopupMenuItem<String>(
           key: const Key('chatMessageCopy'),
           value: 'copy',
-          height: 46,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1155,7 +1144,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 color: colors.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
-              Text('Copy', style: theme.textTheme.bodyMedium),
+              const Text('Copy'),
             ],
           ),
         ),
@@ -1163,7 +1152,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           PopupMenuItem<String>(
             key: const Key('chatMessageEdit'),
             value: 'edit',
-            height: 46,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1174,7 +1162,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   color: colors.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
-                Text('Edit', style: theme.textTheme.bodyMedium),
+                const Text('Edit'),
               ],
             ),
           ),

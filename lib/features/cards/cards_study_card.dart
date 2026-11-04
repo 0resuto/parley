@@ -70,6 +70,7 @@ class CardsStudyCard extends StatelessWidget {
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   tooltip: 'More',
+                  clipBehavior: Clip.antiAlias,
                   onSelected: (String value) {
                     if (value == 'markKnown') {
                       onMarkKnown();
@@ -80,7 +81,20 @@ class CardsStudyCard extends StatelessWidget {
                       PopupMenuItem<String>(
                         value: 'markKnown',
                         enabled: !busy,
-                        child: const Text('Mark as known'),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 20,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text('Mark as known'),
+                          ],
+                        ),
                       ),
                     ];
                   },

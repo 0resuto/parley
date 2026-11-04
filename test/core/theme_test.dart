@@ -36,6 +36,17 @@ void main() {
     expect(theme.chipTheme.shape, isA<StadiumBorder>());
   });
 
+  test('popup menus share the surface and radius', () {
+    final ThemeData theme = buildParleyTheme();
+    final PopupMenuThemeData menu = theme.popupMenuTheme;
+
+    expect(menu.color, theme.colorScheme.surfaceContainerHigh);
+    final RoundedRectangleBorder shape = menu.shape! as RoundedRectangleBorder;
+    expect(shape.borderRadius, BorderRadius.circular(20));
+    expect(menu.menuPadding, const EdgeInsets.symmetric(vertical: 6));
+    expect(menu.textStyle?.fontSize, 14);
+  });
+
   test('button themes share height and shape', () {
     final ThemeData theme = buildParleyTheme();
     const Set<WidgetState> states = <WidgetState>{};

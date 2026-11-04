@@ -66,6 +66,20 @@ ThemeData buildParleyTheme() {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: colorScheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      menuPadding: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      textStyle: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+    ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colorScheme.surfaceContainerLow,
       modalBackgroundColor: colorScheme.surfaceContainerLow,

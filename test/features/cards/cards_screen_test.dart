@@ -296,6 +296,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
       expect(find.text('Mark as known'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
 
       await tester.tap(find.text('Mark as known'));
       await tester.pumpAndSettle();
